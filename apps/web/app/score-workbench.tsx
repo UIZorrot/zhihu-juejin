@@ -34,6 +34,7 @@ interface ScoreResponse {
   baseline: {
     question: string;
     genericPoints: string[];
+    researchMode: "deepseek_web_search" | "zhihu_global_search_fallback";
   };
   baselineComparison: {
     reconstructablePercentage: number;
@@ -132,12 +133,13 @@ function Notification({ message, onClose }: { message: string; onClose: () => vo
   );
 }
 
-const SCORE_HISTORY_KEY = "zhihu-juejin.score-history.v5";
+const SCORE_HISTORY_KEY = "zhihu-juejin.score-history.v6";
 const LEGACY_SCORE_HISTORY_KEYS = [
   "zhihu-juejin.score-history.v1",
   "zhihu-juejin.score-history.v2",
   "zhihu-juejin.score-history.v3",
   "zhihu-juejin.score-history.v4",
+  "zhihu-juejin.score-history.v5",
 ] as const;
 
 function isScoreHistoryEntry(value: unknown): value is ScoreHistoryEntry {
@@ -151,6 +153,7 @@ function isScoreHistoryEntry(value: unknown): value is ScoreHistoryEntry {
     typeof candidate.result?.article?.title === "string" &&
     typeof candidate.result?.score?.finalScore === "number" &&
     typeof candidate.result?.baselineComparison?.reconstructablePercentage === "number" &&
+    typeof candidate.result?.baseline?.researchMode === "string" &&
     Boolean(evaluation) &&
     dimensions.every((dimension) => typeof evaluation?.[dimension.key]?.score === "number")
   );
@@ -434,6 +437,12 @@ export function ScoreWorkbench() {
             <article className="analysis-card">
               <p className="kicker">BLIND AI BASELINE</p>
               <h3>{result.baseline.question}</h3>
+              <div className="signal-list">
+                <strong>基线资料来源</strong>
+                {result.baseline.researchMode === "deepseek_web_search"
+                  ? "DeepSeek 原生 Web Search"
+                  : "知乎全网搜索 fallback"}
+              </div>
               <div className="effort-profile">
                 <span>联网盲基线可重建比例</span>
                 <strong>{result.baselineComparison.reconstructablePercentage}%</strong>

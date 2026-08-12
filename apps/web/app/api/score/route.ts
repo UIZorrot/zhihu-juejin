@@ -12,7 +12,7 @@ import {
   DeepSeekHttpError,
   type DeepSeekModel,
   evaluateArticleQuality,
-  generateBlindBaseline,
+  generateBlindBaselineWithFallback,
   type VerificationEvidence,
 } from "@zhihu-juejin/llm-evaluator";
 import {
@@ -129,11 +129,12 @@ export async function POST(request: Request): Promise<Response> {
     }
     const client = createDeepSeekClient();
     const verificationEvidence = await collectVerificationEvidence(searchClient, article.title);
-    const baseline = await generateBlindBaseline(client, {
-      title: article.title,
-      ...(article.questionContext ? { questionContext: article.questionContext.text } : {}),
-      ...(verificationEvidence ? { verificationEvidence } : {}),
-    });
+    const { baseline, researchMode: baselineResearchMode } =
+      await generateBlindBaselineWithFallback(client, {
+        title: article.title,
+        ...(article.questionContext ? { questionContext: article.questionContext.text } : {}),
+        ...(verificationEvidence ? { verificationEvidence } : {}),
+      });
     const baselineComparison = await compareArticleAgainstBaseline(client, {
       title: article.title,
       text: evaluationText,
@@ -199,6 +200,7 @@ export async function POST(request: Request): Promise<Response> {
       baseline: {
         question: baseline.question,
         genericPoints: baseline.genericPoints,
+        researchMode: baselineResearchMode,
       },
       baselineComparison,
       evaluation,

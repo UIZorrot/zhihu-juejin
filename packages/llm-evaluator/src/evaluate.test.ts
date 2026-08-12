@@ -5,6 +5,7 @@ import {
   evaluateArticleQuality,
   evaluateFullContent,
   generateBlindBaseline,
+  generateBlindBaselineWithFallback,
   triageContentPreview,
 } from "./evaluate";
 import type { ArticleQualityEvaluation } from "./schemas";
@@ -264,6 +265,62 @@ describe("DeepSeek quality evaluator", () => {
     expect(generateBlindBaseline(client, { title: "问题" })).rejects.toBeInstanceOf(
       DeepSeekProtocolError,
     );
+  });
+
+  test("uses Zhihu global-search evidence when native Web Search fails", async () => {
+    const requestUrls: string[] = [];
+    const requestBodies: Array<Record<string, unknown>> = [];
+    const client = new DeepSeekClient({
+      apiKey: "test-key",
+      fetch: async (input, init) => {
+        requestUrls.push(String(input));
+        requestBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+        if (String(input).endsWith("/anthropic/v1/messages")) {
+          return new Response("web search temporarily unavailable", { status: 500 });
+        }
+        return completion({
+          question: "测试问题",
+          answer: "根据全网搜索摘要生成的基线",
+          genericPoints: ["公开资料中的共同信息"],
+        });
+      },
+    });
+
+    const result = await generateBlindBaselineWithFallback(client, {
+      title: "测试问题",
+      verificationEvidence: [
+        {
+          title: "外部二手资料",
+          url: "https://example.com/report",
+          excerpt: "可用于重建的公共事实",
+          authorityLevel: "2",
+        },
+      ],
+    });
+
+    expect(result.researchMode).toBe("zhihu_global_search_fallback");
+    expect(result.baseline.genericPoints).toEqual(["公开资料中的共同信息"]);
+    expect(requestUrls).toEqual([
+      "https://api.deepseek.com/anthropic/v1/messages",
+      "https://api.deepseek.com/chat/completions",
+    ]);
+    const fallbackMessages = requestBodies[1]?.messages as Array<{ content: string }>;
+    const fallbackInput = JSON.parse(fallbackMessages[1]?.content ?? "{}") as {
+      verificationEvidence?: Array<{
+        title?: string;
+        url?: string;
+        excerpt?: string;
+        authorityLevel?: string;
+      }>;
+      article?: unknown;
+    };
+    expect(fallbackInput.verificationEvidence?.[0]).toEqual({
+      title: "外部二手资料",
+      url: "https://example.com/report",
+      excerpt: "可用于重建的公共事实",
+      authorityLevel: "2",
+    });
+    expect(fallbackInput.article).toBeUndefined();
   });
 
   test("deterministically limits high scores when the baseline reconstructs most content", () => {

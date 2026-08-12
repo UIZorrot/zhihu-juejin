@@ -10,8 +10,10 @@ export type {
   ArticleQualityEvaluationInput,
   BaselineComparisonInput,
   BlindBaselineInput,
+  BlindBaselineResearchMode,
   FrontierBaseline,
   FullQualityEvaluationInput,
+  GroundedBlindBaseline,
   PreviewTriageInput,
   VerificationEvidence,
 } from "./evaluate";
@@ -21,6 +23,7 @@ export {
   evaluateArticleQuality,
   evaluateFullContent,
   generateBlindBaseline,
+  generateBlindBaselineWithFallback,
   triageContentPreview,
 } from "./evaluate";
 export type {

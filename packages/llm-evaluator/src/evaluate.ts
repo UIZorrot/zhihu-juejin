@@ -1,4 +1,4 @@
-import type { DeepSeekClient } from "./client";
+import { type DeepSeekClient, DeepSeekHttpError } from "./client";
 import {
   type ArticleQualityEvaluation,
   ArticleQualityEvaluationSchema,
@@ -17,6 +17,13 @@ export interface BlindBaselineInput {
   questionContext?: string;
   verificationEvidence?: readonly VerificationEvidence[];
   evaluationDate?: string;
+}
+
+export type BlindBaselineResearchMode = "deepseek_web_search" | "zhihu_global_search_fallback";
+
+export interface GroundedBlindBaseline {
+  baseline: BlindBaseline;
+  researchMode: BlindBaselineResearchMode;
 }
 
 export interface VerificationEvidence {
@@ -107,6 +114,42 @@ export async function generateBlindBaseline(
       jsonSchema: BlindBaselineSchema,
     }),
   });
+}
+
+export async function generateBlindBaselineWithFallback(
+  client: DeepSeekClient,
+  input: BlindBaselineInput,
+): Promise<GroundedBlindBaseline> {
+  try {
+    return {
+      baseline: await generateBlindBaseline(client, input),
+      researchMode: "deepseek_web_search",
+    };
+  } catch (error) {
+    if (error instanceof DeepSeekHttpError && (error.status === 401 || error.status === 403)) {
+      throw error;
+    }
+    if (!input.verificationEvidence?.length) {
+      throw error;
+    }
+
+    const baseline = await client.completeJson(BlindBaselineSchema, {
+      thinking: false,
+      maxTokens: 2_400,
+      temperature: 0,
+      system:
+        "你是独立的强基线回答器。DeepSeek 原生 Web Search 当前不可用；输入中的 verificationEvidence 是知乎开放平台全网搜索返回的非知乎网页摘要。你不会看到待评分文章、作者、正文、评论或文章中的引用。必须实际利用这些检索材料重建一个强 AI 能生成的答案，同时区分可靠来源、二手材料和未经证实的说法。不得把搜索摘要本身当成权威证据，也不得虚构已阅读全文。最终只输出 JSON。",
+      user: JSON.stringify({
+        task: "使用知乎全网搜索的非知乎结果生成降级盲基线。把能够从检索摘要中重建的关键事实、方法、背景和限制写入 answer 与 genericPoints；检索材料是公共信息，不属于待评分正文的信息增量。",
+        title: input.title,
+        questionContext: input.questionContext,
+        verificationEvidence: input.verificationEvidence,
+        evaluationDate: input.evaluationDate ?? new Date().toISOString().slice(0, 10),
+        jsonSchema: BlindBaselineSchema,
+      }),
+    });
+    return { baseline, researchMode: "zhihu_global_search_fallback" };
+  }
 }
 
 export async function compareArticleAgainstBaseline(
