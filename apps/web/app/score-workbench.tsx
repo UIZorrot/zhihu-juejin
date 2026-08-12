@@ -148,7 +148,7 @@ function Notification({ message, onClose }: { message: string; onClose: () => vo
   );
 }
 
-const SCORE_HISTORY_KEY = "zhihu-juejin.score-history.v7";
+const SCORE_HISTORY_KEY = "zhihu-juejin.score-history.v8";
 const LEGACY_SCORE_HISTORY_KEYS = [
   "zhihu-juejin.score-history.v1",
   "zhihu-juejin.score-history.v2",
@@ -156,6 +156,7 @@ const LEGACY_SCORE_HISTORY_KEYS = [
   "zhihu-juejin.score-history.v4",
   "zhihu-juejin.score-history.v5",
   "zhihu-juejin.score-history.v6",
+  "zhihu-juejin.score-history.v7",
 ] as const;
 
 function isScoreHistoryEntry(value: unknown): value is ScoreHistoryEntry {
@@ -200,6 +201,25 @@ const archetypeLabels = {
   entertainment_culture: "娱乐与文化",
   other: "综合内容",
 } as const;
+
+function publicReceptionDisplayReason(
+  reception: ScoreResponse["evaluation"]["publicReception"],
+  visibleCommentCount: number,
+): string {
+  if (visibleCommentCount === 0) {
+    return "暂未取得足够的公开评论，舆论氛围按中性处理。";
+  }
+  if (reception.positiveObservations.length > 0 && reception.criticalObservations.length > 0) {
+    return "可见评论中同时存在认可与质疑，整体评价存在分歧，尚未形成明确共识。";
+  }
+  if (reception.criticalObservations.length > 0) {
+    return "可见评论以质疑为主，主要关注内容的真实性、原创性或论证质量。";
+  }
+  if (reception.positiveObservations.length > 0) {
+    return "可见评论总体认可内容价值，并提供了正向反馈或补充观察。";
+  }
+  return "可见评论主要是简短态度表达，尚未形成具有充分依据的明确共识。";
+}
 
 export function ScoreWorkbench() {
   const [url, setUrl] = useState("");
@@ -465,6 +485,13 @@ export function ScoreWorkbench() {
           <div className="dimension-grid">
             {dimensions.map(({ key, label, weight }) => {
               const dimension = result.evaluation[key];
+              const reason =
+                key === "publicReception"
+                  ? publicReceptionDisplayReason(
+                      result.evaluation.publicReception,
+                      result.publicReaction?.visibleComments.length ?? 0,
+                    )
+                  : dimension.reason;
               return (
                 <article className="dimension-card" key={key}>
                   <div className="dimension-top">
@@ -475,7 +502,7 @@ export function ScoreWorkbench() {
                   <div className="score-track">
                     <span style={{ width: `${dimension.score * 10}%` }} />
                   </div>
-                  <p>{dimension.reason}</p>
+                  <p>{reason}</p>
                   {dimension.evidence.length > 0 ? (
                     <ul>
                       {dimension.evidence.slice(0, 3).map((item) => (

@@ -277,6 +277,17 @@ export function applyPublicReceptionComposition(
       ? [`仅分析开放平台返回的 ${reaction.visibleComments.length} 条可见评论样本`]
       : ["未取得互动与评论数据，按中性分处理"]),
   ].slice(0, 12);
+  const positiveObservations = evaluation.publicReception.positiveObservations.slice(0, 3);
+  const criticalObservations = evaluation.publicReception.criticalObservations.slice(0, 3);
+  const reason = buildPublicReceptionReason(
+    reaction?.visibleComments.length ?? 0,
+    positiveObservations,
+    criticalObservations,
+  );
+  const evidence = [
+    ...criticalObservations.map((item) => `评论质疑：${item}`),
+    ...positiveObservations.map((item) => `评论认可：${item}`),
+  ].slice(0, 6);
   return {
     ...evaluation,
     publicReception: {
@@ -284,10 +295,31 @@ export function applyPublicReceptionComposition(
       score,
       commentObservationScore: commentScore,
       interactionSignalScore: interactionScore,
-      reason: `综合评价：${evaluation.publicReception.reason}；已结合可见评论中的具体反馈与整体互动信号。`,
+      reason,
+      evidence,
       sampleLimitations,
     },
   };
+}
+
+function buildPublicReceptionReason(
+  visibleCommentCount: number,
+  positiveObservations: readonly string[],
+  criticalObservations: readonly string[],
+): string {
+  if (visibleCommentCount === 0) {
+    return "暂未取得足够的公开评论，舆论氛围按中性处理。";
+  }
+  if (positiveObservations.length > 0 && criticalObservations.length > 0) {
+    return "可见评论中同时存在认可与质疑，整体评价存在分歧，尚未形成明确共识。";
+  }
+  if (criticalObservations.length > 0) {
+    return "可见评论以质疑为主，主要关注内容的真实性、原创性或论证质量。";
+  }
+  if (positiveObservations.length > 0) {
+    return "可见评论总体认可内容价值，并提供了正向反馈或补充观察。";
+  }
+  return "可见评论主要是简短态度表达，尚未形成具有充分依据的明确共识。";
 }
 
 export interface PreviewTriageInput {

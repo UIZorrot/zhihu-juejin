@@ -357,6 +357,10 @@ describe("DeepSeek quality evaluator", () => {
     const evaluation = articleEvaluation();
     evaluation.publicReception.commentObservationScore = 3;
     evaluation.publicReception.interactionSignalScore = 10;
+    evaluation.publicReception.reason =
+      "根据规则，commentObservationScore 为 3，interactionSignalScore 为 10";
+    evaluation.publicReception.positiveObservations = ["认可其中的技术解释"];
+    evaluation.publicReception.criticalObservations = ["质疑内容带有明显 AI 味道"];
 
     const composed = applyPublicReceptionComposition(evaluation, {
       voteUpCount: 308,
@@ -374,6 +378,15 @@ describe("DeepSeek quality evaluator", () => {
     );
     expect(composed.publicReception.reason).not.toContain("60%");
     expect(composed.publicReception.reason).not.toContain("40%");
+    expect(composed.publicReception.reason).not.toContain("commentObservationScore");
+    expect(composed.publicReception.reason).not.toContain("interactionSignalScore");
+    expect(composed.publicReception.reason).toBe(
+      "可见评论中同时存在认可与质疑，整体评价存在分歧，尚未形成明确共识。",
+    );
+    expect(composed.publicReception.evidence).toEqual([
+      "评论质疑：质疑内容带有明显 AI 味道",
+      "评论认可：认可其中的技术解释",
+    ]);
   });
 
   test("rejects JSON that does not match the quality schema", async () => {
