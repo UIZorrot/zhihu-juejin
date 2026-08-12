@@ -46,6 +46,13 @@ interface ScoreResponse {
     originalityCeiling: number;
     reason: string;
   };
+  publicReaction?: {
+    voteUpCount: number;
+    commentCount: number;
+    visibleComments: string[];
+    interactionSignalScore: number;
+    source: "zhihu_open_platform_search";
+  };
   evaluation: {
     contentProfile: {
       primaryArchetype:
@@ -85,6 +92,13 @@ interface ScoreResponse {
       contentFarmSignals: string[];
     };
     timelinessValue: DimensionResult & { timeSensitive: boolean; freshnessBasis: string };
+    publicReception: DimensionResult & {
+      commentObservationScore: number;
+      interactionSignalScore: number;
+      positiveObservations: string[];
+      criticalObservations: string[];
+      sampleLimitations: string[];
+    };
     factualProblems: Array<{
       severity: "minor" | "major";
       problem: string;
@@ -103,6 +117,7 @@ interface ScoreResponse {
     decision: "excellent" | "retain" | "low_value" | "reject";
     appliedCap: number | null;
     capReasons: string[];
+    commercialDeduction: number;
     modelFinalScore?: number;
     humanCalibration?: {
       minimum: number;
@@ -133,13 +148,14 @@ function Notification({ message, onClose }: { message: string; onClose: () => vo
   );
 }
 
-const SCORE_HISTORY_KEY = "zhihu-juejin.score-history.v6";
+const SCORE_HISTORY_KEY = "zhihu-juejin.score-history.v7";
 const LEGACY_SCORE_HISTORY_KEYS = [
   "zhihu-juejin.score-history.v1",
   "zhihu-juejin.score-history.v2",
   "zhihu-juejin.score-history.v3",
   "zhihu-juejin.score-history.v4",
   "zhihu-juejin.score-history.v5",
+  "zhihu-juejin.score-history.v6",
 ] as const;
 
 function isScoreHistoryEntry(value: unknown): value is ScoreHistoryEntry {
@@ -164,8 +180,8 @@ const dimensions = [
   { key: "practiceAndExperience", label: "实践与经验", weight: "15%" },
   { key: "informationGainAndDepth", label: "信息增量与深度", weight: "25%" },
   { key: "professionalismAndOriginality", label: "专业与原创", weight: "15%" },
-  { key: "commercialIndependence", label: "无商业推广", weight: "10%" },
   { key: "timelinessValue", label: "时效价值", weight: "10%" },
+  { key: "publicReception", label: "舆论氛围", weight: "10%" },
 ] as const;
 
 const decisionLabels = {
@@ -303,7 +319,7 @@ export function ScoreWorkbench() {
           </h2>
           <p className="description">
             帮助你发现经过实践检验或专业经验支持的、具有独立判断且 AI
-            无法轻易生成的知识。从证据、经验、深度、专业原创性、无商业推广和时效价值六个维度评分；明显导流会触发额外限制。
+            无法轻易生成的知识。从证据、经验、深度、专业原创、时效和舆论氛围六个正向维度评分；商业推广只扣分，不再因“无推广”加分。
           </p>
         </div>
 
@@ -522,6 +538,11 @@ export function ScoreWorkbench() {
                   <strong>检测到商业推广</strong>
                 </div>
               ) : null}
+              {result.score.commercialDeduction > 0 ? (
+                <div className="cap-note">
+                  <strong>商业推广扣除 {result.score.commercialDeduction.toFixed(1)} 分</strong>
+                </div>
+              ) : null}
               {result.evaluation.commercialIndependence.promotionalSignals.length > 0 ? (
                 <div className="signal-list">
                   <strong>推广信号</strong>
@@ -534,6 +555,12 @@ export function ScoreWorkbench() {
                   {result.evaluation.commercialIndependence.contentFarmSignals.join("；")}
                 </div>
               ) : null}
+              <div className="signal-list">
+                <strong>舆论样本</strong>
+                {result.publicReaction
+                  ? `赞同 ${result.publicReaction.voteUpCount} · 评论 ${result.publicReaction.commentCount} · 可见评论样本 ${result.publicReaction.visibleComments.length} 条`
+                  : "未取得开放平台互动数据，按中性处理"}
+              </div>
             </article>
           </div>
         </section>

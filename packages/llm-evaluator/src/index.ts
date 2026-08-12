@@ -15,10 +15,12 @@ export type {
   FullQualityEvaluationInput,
   GroundedBlindBaseline,
   PreviewTriageInput,
+  PublicReactionContext,
   VerificationEvidence,
 } from "./evaluate";
 export {
   applyBaselineComparisonLimits,
+  applyPublicReceptionComposition,
   compareArticleAgainstBaseline,
   evaluateArticleQuality,
   evaluateFullContent,

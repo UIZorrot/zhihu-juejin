@@ -64,6 +64,15 @@ export interface ArticleQualityEvaluationInput {
   };
   publishedAt?: string;
   evaluationDate?: string;
+  publicReaction?: PublicReactionContext;
+}
+
+export interface PublicReactionContext {
+  voteUpCount: number;
+  commentCount: number;
+  visibleComments: readonly string[];
+  interactionSignalScore: number;
+  source: "zhihu_open_platform_search";
 }
 
 export interface BaselineComparisonInput {
@@ -82,6 +91,7 @@ const TEN_POINT_RUBRIC = `
 专业与原创：10=准确掌握对象、机制、边界和不确定性，并提出基线不易生成的独立框架、犀利判断或高质量叙事整合；7=专业或对象知识可靠，有明确个人视角，或把分散材料组织成有解释力的历史脉络；4=比喻或观点看似新颖，但主要模式是“X 就是 Y”的武断类比，没有观察依据、案例、因果链或反例，或者仅停留在常识复述；0=根本性误解、伪专业推理或洗稿拼接。人文、生活和娱乐内容不要求技术术语，“专业”表现为真正了解人物、事件、文化语境或生活处境。尖锐、反共识、有情绪甚至带贬义修辞的观点，只要推理受知识支持，就是原创正向信号；严禁仅凭语气扣分。可核验的领域身份只能帮助解释经验来源，不能直接换分，也不能抵消正文错误。术语准确只证明专业性，不证明原创性；若正文主要是公开履历、论文摘要、机构报道和受访者陈述的顺序转述，且外部检索或盲测基线可轻易重建大部分内容，就应降低本维度。采访本身只证明工作量，必须产生公开资料难以替代的事实、判断、追问或解释，才能形成高原创分。
 商业独立性：10=没有刻意广告、引流、起号或利益诱导，也没有用平庸洗稿为商业账号蓄水；7=有品牌/产品效果宣传但判断基本独立；4=暗示某商业产品效果优越、轻度软文或利益关系不透明，但没有明确行动召唤；0=明显商业推广、卖课、导流、邀请码、下载入口、反复宣传自有社群或服务、虚构变现、洗稿起号。仅仅点名、讨论或批评公司和产品不算“产品露出”，不能扣分；情绪、讽刺、立场鲜明、批评公司或赞美非商业对象也都不是推广信号。如果 promotionalSignals 与 contentFarmSignals 都为空，本维度必须为 10 分；出现明确下载、加群、邀请码、购买或关注行动召唤时，本维度必须为 0，并设置 PURE_LEAD_GENERATION。此维度越高越好。
 时效价值：10=对时效敏感且包含非常新的、已经核对日期的信息；7=较新且仍有现实价值；5=内容不依赖时效或时间中性；2=时效型内容明显落后；0=把严重过时的信息当作当前事实。新闻足够新可以获得加分，数学、历史等非时效内容不得因为年代久自动扣分。
+舆论氛围：评价公开评论对内容可靠性与价值的总体观察，而不是评价作者受欢迎程度。commentObservationScore 占最终维度 60%：10=可见评论普遍提供专业认可、独立复核或有价值补充且没有实质反驳；7=总体认可并有具体理由；5=评论不足、中性、分歧明显或主要是情绪；3=多条具体质疑 AI 同质化、事实、逻辑、营销或原创性且正文没有回应；0=评论给出可核验的致命反证。interactionSignalScore 占 40%，由系统根据赞同与评论规模预先给出，必须原样返回；互动是弱信号，不得因高赞直接判为高质量。只评价输入中的可见评论样本，不得声称代表完整评论区；没有样本时 commentObservationScore 必须为 5。publicReception.reason 只解释评论观察与样本局限，禁止自行计算、舍入或陈述最终舆论氛围分；最终 score 将由程序重算。
 
 工作量是跨领域共同尺度：查证与交叉验证、对比实验、亲身实践、踩坑、访谈、长期观察、原创推理、搜集时间线以及把杂乱材料组织成易懂叙事，都属于工作量。字数多、情绪强、术语多、排版工整和编造具体细节不代表工作量。contentProfile.effortScore 只评价可从正文识别的有效劳动；最终质量还要检查这些劳动是否转化成可信且对读者有用的信息。
 对于人物、历史或娱乐事件梳理，如果正文有明确人物身份、关系和时间线，并嵌入 10 张以上用于展示材料的图片，通常说明存在显著搜集和编辑劳动；在没有洗稿、装饰图滥用或前后矛盾信号时，effortScore 和实践与经验原则上不低于 7。图片数量不能单独提高证据真实性，真实性仍取决于文本、外部核验和未来的图片内容识别。
@@ -244,11 +254,40 @@ export async function evaluateArticleQuality(
       verificationEvidence: input.verificationEvidence,
       mediaEvidence: input.mediaEvidence,
       authorContext: input.authorContext,
+      publicReaction: input.publicReaction,
       blindBaseline: input.baseline,
       baselineComparison: input.baselineComparison,
       jsonSchema: ArticleQualityEvaluationSchema,
     }),
   });
+}
+
+export function applyPublicReceptionComposition(
+  evaluation: ArticleQualityEvaluation,
+  reaction?: PublicReactionContext,
+): ArticleQualityEvaluation {
+  const commentScore = reaction?.visibleComments.length
+    ? evaluation.publicReception.commentObservationScore
+    : 5;
+  const interactionScore = reaction?.interactionSignalScore ?? 5;
+  const score = Math.round((commentScore * 0.6 + interactionScore * 0.4) * 2) / 2;
+  const sampleLimitations = [
+    ...evaluation.publicReception.sampleLimitations,
+    ...(reaction
+      ? [`仅分析开放平台返回的 ${reaction.visibleComments.length} 条可见评论样本`]
+      : ["未取得互动与评论数据，按中性分处理"]),
+  ].slice(0, 12);
+  return {
+    ...evaluation,
+    publicReception: {
+      ...evaluation.publicReception,
+      score,
+      commentObservationScore: commentScore,
+      interactionSignalScore: interactionScore,
+      reason: `评论观察：${evaluation.publicReception.reason}；评论观察子分 ${commentScore.toFixed(1)} 占 60%，互动弱信号 ${interactionScore.toFixed(1)} 占 40%，由程序合成为 ${score.toFixed(1)} 分。`,
+      sampleLimitations,
+    },
+  };
 }
 
 export interface PreviewTriageInput {

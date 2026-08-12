@@ -19,7 +19,7 @@ export default function HomePage() {
         <div className="section-heading">
           <div>
             <p className="kicker">SCORING CONTRACT</p>
-            <h2>六大维度，精确评判</h2>
+            <h2>六大正向维度，商业推广单独扣分</h2>
           </div>
           <span>0—10 · 0.5 步进</span>
         </div>
@@ -46,15 +46,18 @@ export default function HomePage() {
           </article>
           <article>
             <strong>10%</strong>
-            <h3>商业独立性</h3>
-            <p>只识别产品效果暗示、软文、引流、洗稿与起号；情绪和立场不扣分。</p>
-          </article>
-          <article>
-            <strong>10%</strong>
             <h3>时效价值</h3>
             <p>新鲜且已核对的新闻获得加分；非时效内容保持中性。</p>
           </article>
+          <article>
+            <strong>10%</strong>
+            <h3>舆论氛围</h3>
+            <p>评论总体观察占 60%，点赞等互动弱信号占 40%；不把热度等同质量。</p>
+          </article>
         </div>
+        <p className="commercial-rule">
+          商业推广不参与正向加权：无推广不加分；软文、利益暗示和明确导流按严重程度扣分。
+        </p>
       </section>
 
       <section className="coverage-section">

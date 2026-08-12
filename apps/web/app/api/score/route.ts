@@ -7,6 +7,7 @@ import {
 } from "@zhihu-juejin/content-pipeline";
 import {
   applyBaselineComparisonLimits,
+  applyPublicReceptionComposition,
   compareArticleAgainstBaseline,
   DeepSeekClient,
   DeepSeekHttpError,
@@ -95,6 +96,44 @@ async function collectVerificationEvidence(
   }
 }
 
+function calculateInteractionSignalScore(voteUpCount: number, commentCount: number): number {
+  const weakPopularitySignal =
+    5 + Math.log10(voteUpCount + 1) * 0.65 + Math.log10(commentCount + 1) * 0.35;
+  return Math.round(Math.min(8, weakPopularitySignal) * 2) / 2;
+}
+
+async function collectPublicReaction(
+  client: ZhihuClient | ZhihuCliClient | undefined,
+  title: string,
+  sourceContentId: string,
+) {
+  if (!client) {
+    return undefined;
+  }
+  try {
+    const result = await client.searchZhihu({ query: title, count: 10 });
+    const item = result.items.find(
+      (candidate) =>
+        candidate.ContentID === sourceContentId || candidate.Url.includes(sourceContentId),
+    );
+    if (!item) {
+      return undefined;
+    }
+    return {
+      voteUpCount: item.VoteUpCount,
+      commentCount: item.CommentCount,
+      visibleComments: (item.CommentInfoList ?? [])
+        .map((comment) => comment.Content.trim())
+        .filter(Boolean)
+        .slice(0, 10),
+      interactionSignalScore: calculateInteractionSignalScore(item.VoteUpCount, item.CommentCount),
+      source: "zhihu_open_platform_search" as const,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 export async function POST(request: Request): Promise<Response> {
   let body: { url?: string; text?: string };
   try {
@@ -130,7 +169,10 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
     const client = createDeepSeekClient();
-    const verificationEvidence = await collectVerificationEvidence(searchClient, article.title);
+    const [verificationEvidence, publicReaction] = await Promise.all([
+      collectVerificationEvidence(searchClient, article.title),
+      collectPublicReaction(searchClient, article.title, article.sourceContentId),
+    ]);
     const { baseline, researchMode: baselineResearchMode } =
       await generateBlindBaselineWithFallback(client, {
         title: article.title,
@@ -166,8 +208,12 @@ export async function POST(request: Request): Promise<Response> {
         ? { sampling: { truncated: true, headCharacters: 2_000, tailCharacters: 2_000 } }
         : {}),
       ...(article.publishedAt ? { publishedAt: article.publishedAt } : {}),
+      ...(publicReaction ? { publicReaction } : {}),
     });
-    const evaluation = applyBaselineComparisonLimits(rawEvaluation, baselineComparison);
+    const evaluation = applyPublicReceptionComposition(
+      applyBaselineComparisonLimits(rawEvaluation, baselineComparison),
+      publicReaction,
+    );
     const modelScore = calculateArticleScore(evaluation);
     const calibration = humanCalibrationCases.find(
       (item) => item.canonicalUrl === article.canonicalUrl && item.humanScore !== undefined,
@@ -199,6 +245,7 @@ export async function POST(request: Request): Promise<Response> {
         externalEvidenceCount: verificationEvidence?.length ?? 0,
         externalSearchAvailable: verificationEvidence !== undefined,
       },
+      publicReaction,
       baseline: {
         question: baseline.question,
         genericPoints: baseline.genericPoints,

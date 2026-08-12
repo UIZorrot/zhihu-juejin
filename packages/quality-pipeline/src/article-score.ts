@@ -5,8 +5,8 @@ export const articleScoreWeights = {
   practiceAndExperience: 0.15,
   informationGainAndDepth: 0.25,
   professionalismAndOriginality: 0.15,
-  commercialIndependence: 0.1,
   timelinessValue: 0.1,
+  publicReception: 0.1,
 } as const;
 
 export type ArticleScoreDecision = "excellent" | "retain" | "low_value" | "reject";
@@ -18,6 +18,7 @@ export interface ArticleScoreResult {
   appliedCap: number | null;
   capReasons: string[];
   weights: typeof articleScoreWeights;
+  commercialDeduction: number;
   modelFinalScore?: number;
   humanCalibration?: {
     minimum: number;
@@ -39,8 +40,8 @@ const ARTICLE_DIMENSION_KEYS = [
   "practiceAndExperience",
   "informationGainAndDepth",
   "professionalismAndOriginality",
-  "commercialIndependence",
   "timelinessValue",
+  "publicReception",
 ] as const;
 
 function countDimensionsAtOrBelowSix(evaluation: ArticleQualityEvaluation): number {
@@ -77,8 +78,8 @@ export function calculateArticleScore(evaluation: ArticleQualityEvaluation): Art
       evaluation.informationGainAndDepth.score * articleScoreWeights.informationGainAndDepth +
       evaluation.professionalismAndOriginality.score *
         articleScoreWeights.professionalismAndOriginality +
-      evaluation.commercialIndependence.score * articleScoreWeights.commercialIndependence +
-      evaluation.timelinessValue.score * articleScoreWeights.timelinessValue,
+      evaluation.timelinessValue.score * articleScoreWeights.timelinessValue +
+      evaluation.publicReception.score * articleScoreWeights.publicReception,
   );
 
   const caps: Array<{ maximum: number; reason: string }> = [];
@@ -114,9 +115,18 @@ export function calculateArticleScore(evaluation: ArticleQualityEvaluation): Art
   }
 
   const appliedCap = caps.length > 0 ? Math.min(...caps.map((cap) => cap.maximum)) : null;
+  const commercialDeduction = evaluation.flags.includes("PURE_LEAD_GENERATION")
+    ? 0
+    : evaluation.commercialIndependence.score >= 9.5
+      ? 0
+      : evaluation.commercialIndependence.score >= 7
+        ? 0.5
+        : evaluation.commercialIndependence.score >= 4
+          ? 1
+          : 2;
   const commercialStartingScore = evaluation.flags.includes("PURE_LEAD_GENERATION")
     ? Math.max(0, 6 - countDimensionsAtOrBelowSix(evaluation))
-    : undefined;
+    : Math.max(0, uncappedScore - commercialDeduction);
   const finalScore = roundToHalf(
     Math.max(
       0,
@@ -138,5 +148,6 @@ export function calculateArticleScore(evaluation: ArticleQualityEvaluation): Art
     appliedCap,
     capReasons: caps.filter((cap) => cap.maximum === appliedCap).map((cap) => cap.reason),
     weights: articleScoreWeights,
+    commercialDeduction,
   };
 }

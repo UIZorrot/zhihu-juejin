@@ -4,7 +4,10 @@ import { applyHumanScoreCalibration, calculateArticleScore } from "./article-sco
 
 function evaluation(
   scores: Partial<
-    Record<"evidence" | "practice" | "gain" | "professional" | "commercial" | "timeliness", number>
+    Record<
+      "evidence" | "practice" | "gain" | "professional" | "commercial" | "timeliness" | "reception",
+      number
+    >
   >,
 ): ArticleQualityEvaluation {
   const dimension = (score: number) => ({ score, evidence: [], reason: "测试" });
@@ -49,6 +52,14 @@ function evaluation(
       timeSensitive: false,
       freshnessBasis: "时间中性",
     },
+    publicReception: {
+      ...dimension(scores.reception ?? 5),
+      commentObservationScore: scores.reception ?? 5,
+      interactionSignalScore: scores.reception ?? 5,
+      positiveObservations: [],
+      criticalObservations: [],
+      sampleLimitations: [],
+    },
     factualProblems: [],
     flags: [],
     confidence: 80,
@@ -62,7 +73,8 @@ describe("calculateArticleScore", () => {
       evaluation({ evidence: 9, practice: 7, gain: 7.5, commercial: 8, timeliness: 7 }),
     );
     expect(result.uncappedScore).toBe(7.5);
-    expect(result.finalScore).toBe(7.5);
+    expect(result.commercialDeduction).toBe(0.5);
+    expect(result.finalScore).toBe(7);
     expect(result.decision).toBe("retain");
   });
 
@@ -76,7 +88,7 @@ describe("calculateArticleScore", () => {
       timeliness: 10,
     });
     const result = calculateArticleScore(input);
-    expect(result.uncappedScore).toBe(6.5);
+    expect(result.uncappedScore).toBe(6);
     expect(result.finalScore).toBe(4);
     expect(result.capReasons).toContain("既无可靠证据或经验，也无专业原创判断");
   });
@@ -85,7 +97,7 @@ describe("calculateArticleScore", () => {
     const input = evaluation({ evidence: 4, practice: 4, professional: 8, gain: 9 });
     const result = calculateArticleScore(input);
     expect(result.appliedCap).toBeNull();
-    expect(result.finalScore).toBe(6.5);
+    expect(result.finalScore).toBe(6);
   });
 
   test("deducts one point for every dimension at or below six on obvious promotion", () => {
@@ -138,17 +150,32 @@ describe("calculateArticleScore", () => {
     });
     input.flags = ["PURE_LEAD_GENERATION"];
     const result = calculateArticleScore(input);
-    expect(result.uncappedScore).toBe(5);
+    expect(result.uncappedScore).toBe(5.5);
     expect(result.finalScore).toBe(1);
     expect(result.appliedCap).toBe(1);
     expect(result.capReasons).toEqual(["检测到商业推广；5 个维度不高于 6 分，各扣 1 分"]);
   });
 
-  test("lets ordinary promotion lower the weighted score without a hard limit", () => {
+  test("subtracts ordinary promotion after positive quality scoring", () => {
     const input = evaluation({ evidence: 7, practice: 7, gain: 7, professional: 7, commercial: 4 });
     const result = calculateArticleScore(input);
     expect(result.appliedCap).toBeNull();
-    expect(result.finalScore).toBe(6.5);
+    expect(result.uncappedScore).toBe(6.5);
+    expect(result.commercialDeduction).toBe(1);
+    expect(result.finalScore).toBe(5.5);
+  });
+
+  test("does not reward an article merely for having no promotion", () => {
+    const withoutPromotion = calculateArticleScore(
+      evaluation({ evidence: 7, practice: 7, gain: 7, professional: 7, commercial: 10 }),
+    );
+    const lightPromotion = calculateArticleScore(
+      evaluation({ evidence: 7, practice: 7, gain: 7, professional: 7, commercial: 8 }),
+    );
+    expect(withoutPromotion.uncappedScore).toBe(lightPromotion.uncappedScore);
+    expect(withoutPromotion.commercialDeduction).toBe(0);
+    expect(lightPromotion.commercialDeduction).toBe(0.5);
+    expect(lightPromotion.finalScore).toBe(withoutPromotion.finalScore - 0.5);
   });
 
   test("does not apply an unsupported-comparison cap to a high evidence score", () => {
@@ -156,8 +183,9 @@ describe("calculateArticleScore", () => {
       evidence: 8.5,
       practice: 6.5,
       gain: 8,
-      commercial: 9,
+      commercial: 10,
       timeliness: 9,
+      reception: 9,
     });
     input.flags = ["UNSUPPORTED_DEEP_COMPARISON"];
     const result = calculateArticleScore(input);
@@ -168,7 +196,7 @@ describe("calculateArticleScore", () => {
 
   test("uses a recorded human score while preserving the model result", () => {
     const modelResult = calculateArticleScore(
-      evaluation({ evidence: 8, practice: 8, gain: 8, professional: 8 }),
+      evaluation({ evidence: 8, practice: 8, gain: 8, professional: 8, reception: 10 }),
     );
     const result = applyHumanScoreCalibration(modelResult, {
       score: 6.5,

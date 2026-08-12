@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { DeepSeekClient, DeepSeekHttpError, DeepSeekProtocolError } from "./client";
 import {
   applyBaselineComparisonLimits,
+  applyPublicReceptionComposition,
   evaluateArticleQuality,
   evaluateFullContent,
   generateBlindBaseline,
@@ -81,6 +82,14 @@ function articleEvaluation(): ArticleQualityEvaluation {
     },
     commercialIndependence: { ...dimension, promotionalSignals: [], contentFarmSignals: [] },
     timelinessValue: { ...dimension, timeSensitive: true, freshnessBasis: "当天发布" },
+    publicReception: {
+      ...dimension,
+      commentObservationScore: 7,
+      interactionSignalScore: 7,
+      positiveObservations: [],
+      criticalObservations: [],
+      sampleLimitations: [],
+    },
     factualProblems: [],
     flags: [],
     confidence: 80,
@@ -342,6 +351,27 @@ describe("DeepSeek quality evaluator", () => {
     expect(limited.informationGainAndDepth.score).toBe(4.5);
     expect(limited.professionalismAndOriginality.score).toBe(4.5);
     expect(limited.informationGainAndDepth.reason).toContain("可重建约 85%");
+  });
+
+  test("composes public reception from comments 60% and interactions 40%", () => {
+    const evaluation = articleEvaluation();
+    evaluation.publicReception.commentObservationScore = 3;
+    evaluation.publicReception.interactionSignalScore = 10;
+
+    const composed = applyPublicReceptionComposition(evaluation, {
+      voteUpCount: 308,
+      commentCount: 25,
+      visibleComments: ["一眼 AI", "缺少独立增量"],
+      interactionSignalScore: 8,
+      source: "zhihu_open_platform_search",
+    });
+
+    expect(composed.publicReception.score).toBe(5);
+    expect(composed.publicReception.commentObservationScore).toBe(3);
+    expect(composed.publicReception.interactionSignalScore).toBe(8);
+    expect(composed.publicReception.sampleLimitations).toContain(
+      "仅分析开放平台返回的 2 条可见评论样本",
+    );
   });
 
   test("rejects JSON that does not match the quality schema", async () => {

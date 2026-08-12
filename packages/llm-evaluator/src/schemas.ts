@@ -185,6 +185,22 @@ export const ArticleQualityEvaluationSchema = Type.Object({
       freshnessBasis: Type.String({ minLength: 1, maxLength: 500 }),
     }),
   ]),
+  publicReception: Type.Intersect([
+    DimensionSchema,
+    Type.Object({
+      commentObservationScore: TenPointScoreSchema,
+      interactionSignalScore: TenPointScoreSchema,
+      positiveObservations: Type.Array(Type.String({ minLength: 1, maxLength: 500 }), {
+        maxItems: 12,
+      }),
+      criticalObservations: Type.Array(Type.String({ minLength: 1, maxLength: 500 }), {
+        maxItems: 12,
+      }),
+      sampleLimitations: Type.Array(Type.String({ minLength: 1, maxLength: 500 }), {
+        maxItems: 12,
+      }),
+    }),
+  ]),
   factualProblems: Type.Array(
     Type.Object({
       severity: Type.Union([Type.Literal("minor"), Type.Literal("major")]),
