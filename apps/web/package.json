@@ -1,0 +1,20 @@
+{
+  "name": "@zhihu-juejin/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@zhihu-juejin/audit-engine": "workspace:*",
+    "@zhihu-juejin/content-pipeline": "workspace:*",
+    "@zhihu-juejin/feed-engine": "workspace:*",
+    "@zhihu-juejin/llm-evaluator": "workspace:*",
+    "@zhihu-juejin/quality-pipeline": "workspace:*",
+    "@zhihu-juejin/recommendation-engine": "workspace:*",
+    "@zhihu-juejin/taxonomy": "workspace:*",
+    "@zhihu-juejin/zhihu-client": "workspace:*"
+  }
+}

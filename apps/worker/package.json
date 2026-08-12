@@ -1,0 +1,18 @@
+{
+  "name": "@zhihu-juejin/worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "discover": "bun src/index.ts discover-taxonomy",
+    "plan": "bun src/index.ts plan-taxonomy",
+    "build": "bun build src/index.ts --outdir dist --target bun"
+  },
+  "dependencies": {
+    "@zhihu-juejin/feed-engine": "workspace:*",
+    "@zhihu-juejin/llm-evaluator": "workspace:*",
+    "@zhihu-juejin/quality-pipeline": "workspace:*",
+    "@zhihu-juejin/taxonomy": "workspace:*",
+    "@zhihu-juejin/zhihu-client": "workspace:*"
+  }
+}

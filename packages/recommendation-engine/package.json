@@ -1,0 +1,11 @@
+{
+  "name": "@zhihu-juejin/recommendation-engine",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@zhihu-juejin/contracts": "workspace:*"
+  }
+}

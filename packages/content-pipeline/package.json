@@ -1,0 +1,13 @@
+{
+  "name": "@zhihu-juejin/content-pipeline",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@zhihu-juejin/contracts": "workspace:*",
+    "@zhihu-juejin/zhihu-client": "workspace:*",
+    "undici": "7.16.0"
+  }
+}

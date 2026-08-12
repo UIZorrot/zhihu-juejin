@@ -1,0 +1,14 @@
+{
+  "name": "@zhihu-juejin/feed-engine",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@zhihu-juejin/content-pipeline": "workspace:*",
+    "@zhihu-juejin/contracts": "workspace:*",
+    "@zhihu-juejin/taxonomy": "workspace:*",
+    "@zhihu-juejin/zhihu-client": "workspace:*"
+  }
+}
