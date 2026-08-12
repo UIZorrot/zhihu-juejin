@@ -1,5 +1,3 @@
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import {
   readZhihuArticle,
   sampleArticleText,
@@ -21,7 +19,7 @@ import {
   calculateArticleScore,
   humanCalibrationCases,
 } from "@zhihu-juejin/quality-pipeline";
-import { ZhihuCliClient, ZhihuClient } from "@zhihu-juejin/zhihu-client";
+import { ZhihuClient } from "@zhihu-juejin/zhihu-client";
 import { NextResponse } from "next/server";
 import { looksLikeTargetContent } from "./baseline-source-filter";
 
@@ -44,7 +42,7 @@ function createDeepSeekClient(): DeepSeekClient {
   });
 }
 
-function createZhihuSearchClient(): ZhihuClient | ZhihuCliClient | undefined {
+function createZhihuSearchClient(): ZhihuClient | undefined {
   const accessSecret = process.env.ZHIHU_ACCESS_SECRET?.trim();
   if (accessSecret) {
     return new ZhihuClient({
@@ -52,18 +50,11 @@ function createZhihuSearchClient(): ZhihuClient | ZhihuCliClient | undefined {
       ...(process.env.ZHIHU_API_BASE_URL ? { baseUrl: process.env.ZHIHU_API_BASE_URL } : {}),
     });
   }
-  const configuredPath = process.env.ZHIHU_CLI_PATH?.trim();
-  const localAppData = process.env.LOCALAPPDATA?.trim();
-  const defaultPath = localAppData
-    ? join(localAppData, "ZhihuCLI", "current", "zhihu-cli.exe")
-    : undefined;
-  const binaryPath =
-    configuredPath || (defaultPath && existsSync(defaultPath) ? defaultPath : undefined);
-  return binaryPath ? new ZhihuCliClient({ binaryPath }) : undefined;
+  return undefined;
 }
 
 async function collectVerificationEvidence(
-  client: ZhihuClient | ZhihuCliClient | undefined,
+  client: ZhihuClient | undefined,
   query: string,
 ): Promise<VerificationEvidence[] | undefined> {
   if (!client) {
@@ -103,7 +94,7 @@ function calculateInteractionSignalScore(voteUpCount: number, commentCount: numb
 }
 
 async function collectPublicReaction(
-  client: ZhihuClient | ZhihuCliClient | undefined,
+  client: ZhihuClient | undefined,
   title: string,
   sourceContentId: string,
 ) {

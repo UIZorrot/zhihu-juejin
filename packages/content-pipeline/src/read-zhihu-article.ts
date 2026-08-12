@@ -1,5 +1,3 @@
-import { EnvHttpProxyAgent, fetch as undiciFetch } from "undici";
-
 const ARTICLE_SAMPLE_CHARACTERS = 4_000;
 const MAXIMUM_RESPONSE_BYTES = 2_000_000;
 const MINIMUM_COMPLETE_ARTICLE_CHARACTERS = 1_500;
@@ -9,21 +7,7 @@ const REDIRECT_STATUS_CODES = [301, 302, 303, 307, 308];
 type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
 function createDefaultFetch(): FetchLike {
-  const proxyConfigured = Boolean(process.env.HTTPS_PROXY || process.env.https_proxy);
-  if (!proxyConfigured) {
-    return fetch;
-  }
-  const dispatcher = new EnvHttpProxyAgent();
-  return async (input, init) => {
-    const headers = init?.headers ? Object.fromEntries(new Headers(init.headers).entries()) : {};
-    return (await undiciFetch(input, {
-      method: init?.method,
-      headers,
-      signal: init?.signal,
-      redirect: init?.redirect,
-      dispatcher,
-    })) as unknown as Response;
-  };
+  return fetch;
 }
 
 interface ZhihuAppViewPost {
