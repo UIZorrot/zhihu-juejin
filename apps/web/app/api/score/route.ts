@@ -22,6 +22,7 @@ import {
 } from "@zhihu-juejin/quality-pipeline";
 import { ZhihuCliClient, ZhihuClient } from "@zhihu-juejin/zhihu-client";
 import { NextResponse } from "next/server";
+import { looksLikeTargetContent } from "./baseline-source-filter";
 
 export const runtime = "nodejs";
 
@@ -78,6 +79,7 @@ async function collectVerificationEvidence(
           return false;
         }
       })
+      .filter((item) => !looksLikeTargetContent(item.Title, query))
       .slice(0, 8)
       .map((item) => ({
         title: item.Title,
