@@ -372,6 +372,8 @@ describe("DeepSeek quality evaluator", () => {
     expect(composed.publicReception.sampleLimitations).toContain(
       "仅分析开放平台返回的 2 条可见评论样本",
     );
+    expect(composed.publicReception.reason).not.toContain("60%");
+    expect(composed.publicReception.reason).not.toContain("40%");
   });
 
   test("rejects JSON that does not match the quality schema", async () => {

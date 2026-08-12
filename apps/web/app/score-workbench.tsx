@@ -319,7 +319,7 @@ export function ScoreWorkbench() {
           </h2>
           <p className="description">
             帮助你发现经过实践检验或专业经验支持的、具有独立判断且 AI
-            无法轻易生成的知识。从证据、经验、深度、专业原创、时效和舆论氛围六个正向维度评分；商业推广只扣分，不再因“无推广”加分。
+            无法轻易生成的知识。从证据、经验、深度、专业原创、时效和舆论氛围六个维度进行判断。
           </p>
         </div>
 
@@ -533,26 +533,10 @@ export function ScoreWorkbench() {
                 <span>判断置信度</span>
                 <strong>{result.evaluation.confidence}%</strong>
               </div>
-              {result.evaluation.flags?.includes("PURE_LEAD_GENERATION") ? (
+              {result.evaluation.flags?.includes("PURE_LEAD_GENERATION") ||
+              result.score.commercialDeduction > 0 ? (
                 <div className="cap-note">
                   <strong>检测到商业推广</strong>
-                </div>
-              ) : null}
-              {result.score.commercialDeduction > 0 ? (
-                <div className="cap-note">
-                  <strong>商业推广扣除 {result.score.commercialDeduction.toFixed(1)} 分</strong>
-                </div>
-              ) : null}
-              {result.evaluation.commercialIndependence.promotionalSignals.length > 0 ? (
-                <div className="signal-list">
-                  <strong>推广信号</strong>
-                  {result.evaluation.commercialIndependence.promotionalSignals.join("；")}
-                </div>
-              ) : null}
-              {result.evaluation.commercialIndependence.contentFarmSignals.length > 0 ? (
-                <div className="signal-list">
-                  <strong>洗稿 / 起号信号</strong>
-                  {result.evaluation.commercialIndependence.contentFarmSignals.join("；")}
                 </div>
               ) : null}
               <div className="signal-list">

@@ -284,7 +284,7 @@ export function applyPublicReceptionComposition(
       score,
       commentObservationScore: commentScore,
       interactionSignalScore: interactionScore,
-      reason: `评论观察：${evaluation.publicReception.reason}；评论观察子分 ${commentScore.toFixed(1)} 占 60%，互动弱信号 ${interactionScore.toFixed(1)} 占 40%，由程序合成为 ${score.toFixed(1)} 分。`,
+      reason: `综合评价：${evaluation.publicReception.reason}；已结合可见评论中的具体反馈与整体互动信号。`,
       sampleLimitations,
     },
   };
