@@ -2,6 +2,8 @@ import type { DeepSeekClient } from "./client";
 import {
   type ArticleQualityEvaluation,
   ArticleQualityEvaluationSchema,
+  type BaselineComparison,
+  BaselineComparisonSchema,
   type BlindBaseline,
   BlindBaselineSchema,
   type FullQualityEvaluation,
@@ -13,6 +15,7 @@ import {
 export interface BlindBaselineInput {
   title: string;
   questionContext?: string;
+  verificationEvidence?: readonly VerificationEvidence[];
   evaluationDate?: string;
 }
 
@@ -36,6 +39,7 @@ export interface ArticleQualityEvaluationInput {
   canonicalUrl: string;
   citations: readonly string[];
   baseline: BlindBaseline;
+  baselineComparison?: BaselineComparison;
   questionContext?: {
     text: string;
     citations: readonly string[];
@@ -53,6 +57,13 @@ export interface ArticleQualityEvaluationInput {
   };
   publishedAt?: string;
   evaluationDate?: string;
+}
+
+export interface BaselineComparisonInput {
+  title: string;
+  text: string;
+  baseline: BlindBaseline;
+  verificationEvidence?: readonly VerificationEvidence[];
 }
 
 const TEN_POINT_RUBRIC = `
@@ -79,19 +90,88 @@ export async function generateBlindBaseline(
   client: DeepSeekClient,
   input: BlindBaselineInput,
 ): Promise<BlindBaseline> {
-  return client.completeJson(BlindBaselineSchema, {
+  return client.completeWebSearchJson(BlindBaselineSchema, {
     thinking: false,
-    maxTokens: 1_400,
+    maxTokens: 2_400,
+    maxSearchUses: 4,
+    blockedDomains: ["zhihu.com"],
+    temperature: 0,
     system:
-      "你是独立基线回答器。你不会看到待评分文章、作者、正文或文章中的引用。请只根据题目独立给出一份常规但可靠的 AI 回答，用于之后检测文章是否有信息增量。只输出 JSON。",
+      "你是独立的强基线回答器。你不会看到待评分文章、作者、正文、评论或文章中的引用。必须先使用 Web Search 搜索题目中的关键事件、概念和数字，优先采用官方页面、论文、机构资料和可靠媒体；不得搜索或打开知乎。然后根据题目、公开问题背景和独立外部资料，尽可能具体地重建一个能力较强的 AI 能直接生成的答案。不要只写中性套话；应覆盖可由公开资料获得的关键事实、方法直觉、前置工作、限制、反例和不确定性。外部资料只用于建立基线，不代表待评分文章的原创贡献。最终只输出 JSON。",
     user: JSON.stringify({
-      task: "根据问题标题和可选的问题描述，归纳一个中性的核心问题并独立回答。问题描述是所有回答者都能看到的公共前提，不属于待评分回答的信息增量。不要假设你看过对应回答。",
+      task: "生成强 AI 盲测基线。问题描述和外部资料均为可公开取得的共同信息，不属于待评分回答的信息增量。把资料中的实质内容写入 answer 和 genericPoints；不要假设你看过对应回答，也不要模仿未知作者。",
       title: input.title,
       questionContext: input.questionContext,
+      verificationEvidence: input.verificationEvidence,
       evaluationDate: input.evaluationDate ?? new Date().toISOString().slice(0, 10),
       jsonSchema: BlindBaselineSchema,
     }),
   });
+}
+
+export async function compareArticleAgainstBaseline(
+  client: DeepSeekClient,
+  input: BaselineComparisonInput,
+): Promise<BaselineComparison> {
+  return client.completeJson(BaselineComparisonSchema, {
+    thinking: false,
+    maxTokens: 2_400,
+    temperature: 0,
+    system:
+      "你是独立的信息增量审判器，只判断待评正文相对于强 AI 基线和公开资料真正新增了什么。术语更多、篇幅更长、结构更顺、换比喻、把公开资料重新组织成科普，都只能算表达贡献，不能算事实或洞见增量。不要根据文风断言文章由 AI 生成，但要记录缺乏作者特异证据的模板化 AI 风格风险。只输出 JSON。",
+    user: JSON.stringify({
+      task: "逐项拆分正文。reconstructablePoints 写基线或公开资料已经覆盖的实质内容；presentationOnlyPoints 写只是表达、组织或科普方式不同的内容；incrementalPoints 只写真正无法由基线与公开资料直接重建的新事实、一手材料、推导或独立判断。若可重建比例不低于 70% 且没有一手材料或展开推导，informationGainCeiling 和 originalityCeiling 均不得超过 5.5；不低于 50% 时原则上不得超过 6.5。达到 7 分以上必须至少有两项具体、不可重建且对结论重要的增量，不能把术语正确本身当原创。",
+      title: input.title,
+      articleText: input.text,
+      blindBaseline: input.baseline,
+      verificationEvidence: input.verificationEvidence,
+      jsonSchema: BaselineComparisonSchema,
+    }),
+  });
+}
+
+export function applyBaselineComparisonLimits(
+  evaluation: ArticleQualityEvaluation,
+  comparison: BaselineComparison,
+): ArticleQualityEvaluation {
+  const deterministicCeiling =
+    comparison.reconstructablePercentage >= 80 && comparison.incrementalPoints.length < 2
+      ? 4.5
+      : comparison.reconstructablePercentage >= 70
+        ? 5.5
+        : comparison.reconstructablePercentage >= 50
+          ? 6.5
+          : 10;
+  const informationGainCeiling = Math.min(deterministicCeiling, comparison.informationGainCeiling);
+  const originalityCeiling = Math.min(deterministicCeiling, comparison.originalityCeiling);
+
+  const informationWasLimited = evaluation.informationGainAndDepth.score > informationGainCeiling;
+  const originalityWasLimited = evaluation.professionalismAndOriginality.score > originalityCeiling;
+  const limitReason = `独立盲基线可重建约 ${comparison.reconstructablePercentage}% 的实质内容`;
+
+  return {
+    ...evaluation,
+    informationGainAndDepth: {
+      ...evaluation.informationGainAndDepth,
+      score: Math.min(evaluation.informationGainAndDepth.score, informationGainCeiling),
+      reason: informationWasLimited
+        ? `${evaluation.informationGainAndDepth.reason}；${limitReason}，按基线对比限制为 ${informationGainCeiling.toFixed(1)} 分。`
+        : evaluation.informationGainAndDepth.reason,
+      evidence: informationWasLimited
+        ? [...evaluation.informationGainAndDepth.evidence, limitReason].slice(0, 12)
+        : evaluation.informationGainAndDepth.evidence,
+    },
+    professionalismAndOriginality: {
+      ...evaluation.professionalismAndOriginality,
+      score: Math.min(evaluation.professionalismAndOriginality.score, originalityCeiling),
+      reason: originalityWasLimited
+        ? `${evaluation.professionalismAndOriginality.reason}；${limitReason}，按基线对比限制为 ${originalityCeiling.toFixed(1)} 分。`
+        : evaluation.professionalismAndOriginality.reason,
+      evidence: originalityWasLimited
+        ? [...evaluation.professionalismAndOriginality.evidence, limitReason].slice(0, 12)
+        : evaluation.professionalismAndOriginality.evidence,
+    },
+  };
 }
 
 export async function evaluateArticleQuality(
@@ -107,7 +187,7 @@ export async function evaluateArticleQuality(
     temperature: 0,
     system: `你是知乎掘金的内容评分器。依据给定正文样本、问题上下文、独立生成的盲测基线、可见引用和外部检索证据判断。不得使用点赞数、粉丝量或作者名气。先为 contentProfile 选择最贴近正文价值来源的内容类型，再使用对应证据标准；不要拿技术论文模板评判生活经历、人物史料或社会评论。问题描述是回答的公共上下文：其中已经给出的事实和来源不能被误判为回答缺少出处，但也不能当作回答自己的信息增量。外部检索若能直接支持一个常见事实，就把它视为已核验；搜索未召回、没有找到或暂时无法验证，不构成事实错误。只有明确的相反证据才能产生 factualProblems；major 问题必须在 contradictingEvidence 中写出可核查的冲突证据，否则禁止标为 major。mediaEvidence 表示正文实际嵌入的图片或截图：图片数量可证明作者进行了材料展示和编辑投入，尤其对人物史料、娱乐事件和教程有意义；但你没有看到图片像素，不能编造图片内容，也不能仅凭图片数量断言某个事实已经核验。评论与解释性文章可以依靠逻辑链、领域惯例和经验判断论证价值，但纯粹的武断类比不是专业直觉。修辞、讽刺、价值判断和经验性概括不属于可直接判错的事实。作者资料只能作为判断经验来源的弱证据，不能自动加分或覆盖正文错误。每个分数必须引用正文具体证据；无法验证时降低置信度，不得编造核验结果。每个数组最多填写 3 条，每条保持简短。${TEN_POINT_RUBRIC}\n只输出 JSON。`,
     user: JSON.stringify({
-      task: "先判断内容类型和有效工作量，再按六个维度评分。盲测基线没有看到待评分正文、作者资料和引用。区分问题前提、事实论断、个人经历、资料整理、专业经验判断和外部核验结果；评价工作量是否真正转化成可信、有用、难以替代的知识。对于人物与科技报道，额外检查公开检索是否足以重建正文大部分信息，以及采访是否真正产生了不可替代的材料；不要把术语数量、准确转述或履历流水账误当成原创洞见。",
+      task: "先判断内容类型和有效工作量，再按六个维度评分。盲测基线没有看到待评分正文、作者资料和引用，但已经使用与评分器相同的公开外部资料生成，因此它代表强 AI 可直接重建的内容。逐条比较正文与 blindBaseline：仅仅更长、更流畅、术语更多、换一种比喻或把公开资料改写成科普，不构成信息增量。信息增量达到 7 分，必须列出至少两项基线和公开资料都无法直接重建的具体新增事实、推导、独立判断或一手材料；若正文的核心事实、方法与局限基本都能由基线或 verificationEvidence 重建，信息增量原则上不得超过 4.5。专业术语正确只证明转述可能准确，不证明作者理解、工作量或原创性；没有推导、阅读痕迹、来源选择依据或独立判断时，专业与原创原则上不得超过 5.5，实践与经验不得超过 5.5。AI 风格不能证明由 AI 生成，但若正文呈现模板化分节、对称转折、泛化结论、缺少作者特异证据，且实质内容可由公开资料重建，应将其作为同质化风险降低信息增量和原创性。区分问题前提、事实论断、个人经历、资料整理、专业经验判断和外部核验结果；评价工作量是否真正转化成可信、有用、难以替代的知识。",
       evaluationDate: input.evaluationDate ?? new Date().toISOString().slice(0, 10),
       article: {
         title: input.title,
@@ -122,6 +202,7 @@ export async function evaluateArticleQuality(
       mediaEvidence: input.mediaEvidence,
       authorContext: input.authorContext,
       blindBaseline: input.baseline,
+      baselineComparison: input.baselineComparison,
       jsonSchema: ArticleQualityEvaluationSchema,
     }),
   });

@@ -22,6 +22,11 @@ export interface JsonCompletionOptions {
   temperature?: number;
 }
 
+export interface WebSearchJsonCompletionOptions extends JsonCompletionOptions {
+  maxSearchUses?: number;
+  blockedDomains?: readonly string[];
+}
+
 const CompletionResponseSchema = Type.Object({
   id: Type.String(),
   model: Type.String(),
@@ -48,6 +53,20 @@ const CompletionResponseSchema = Type.Object({
     }),
   ),
 });
+
+const AnthropicMessageResponseSchema = Type.Object(
+  {
+    content: Type.Array(Type.Object({ type: Type.String() }, { additionalProperties: true }), {
+      minItems: 1,
+    }),
+    stop_reason: Type.Union([
+      Type.Literal("end_turn"),
+      Type.Literal("max_tokens"),
+      Type.Literal("stop_sequence"),
+    ]),
+  },
+  { additionalProperties: true },
+);
 
 export class DeepSeekProtocolError extends Error {
   constructor(message: string) {
@@ -109,6 +128,93 @@ export class DeepSeekClient {
       );
     }
     throw new DeepSeekProtocolError("DeepSeek JSON Output validation failed unexpectedly");
+  }
+
+  async completeWebSearchJson<T extends TSchema>(
+    schema: T,
+    options: WebSearchJsonCompletionOptions,
+  ): Promise<Static<T>> {
+    const response = await this.#fetch(`${this.#baseUrl}/anthropic/v1/messages`, {
+      method: "POST",
+      headers: {
+        "x-api-key": this.#apiKey,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: this.#model,
+        system: options.system,
+        messages: [{ role: "user", content: options.user }],
+        thinking: { type: options.thinking === false ? "disabled" : "enabled" },
+        output_config: { effort: options.reasoningEffort ?? "low" },
+        max_tokens: options.maxTokens ?? 2_400,
+        temperature: options.temperature ?? 0,
+        tools: [
+          {
+            type: "web_search_20250305",
+            name: "web_search",
+            max_uses: options.maxSearchUses ?? 4,
+            ...(options.blockedDomains?.length
+              ? { blocked_domains: [...options.blockedDomains] }
+              : {}),
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(this.#timeoutMs),
+    });
+
+    const rawResponse = await response.text();
+    if (!response.ok) {
+      throw new DeepSeekHttpError(response.status);
+    }
+
+    let message: unknown;
+    try {
+      message = JSON.parse(rawResponse);
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        throw new DeepSeekProtocolError("DeepSeek Web Search returned a non-JSON API response");
+      }
+      throw error;
+    }
+
+    if (!Value.Check(AnthropicMessageResponseSchema, message)) {
+      throw new DeepSeekProtocolError("DeepSeek Web Search response did not match the API schema");
+    }
+    if (message.stop_reason !== "end_turn") {
+      throw new DeepSeekProtocolError(
+        `DeepSeek Web Search did not finish normally: ${message.stop_reason}`,
+      );
+    }
+
+    const contentBlocks = message.content as Array<Record<string, unknown> & { type: string }>;
+    const usedWebSearch = contentBlocks.some(
+      (block) => block.type === "server_tool_use" && block.name === "web_search",
+    );
+    if (!usedWebSearch) {
+      throw new DeepSeekProtocolError("DeepSeek did not use the required Web Search tool");
+    }
+
+    const textBlocks = contentBlocks.filter(
+      (block): block is typeof block & { text: string } =>
+        block.type === "text" && typeof block.text === "string",
+    );
+    const finalText = textBlocks.at(-1)?.text;
+    if (!finalText) {
+      throw new DeepSeekProtocolError("DeepSeek Web Search response did not contain final text");
+    }
+
+    const result = parseJsonObject(finalText, "DeepSeek Web Search final response");
+    if (!Value.Check(schema, result)) {
+      const details = [...Value.Errors(schema, result)]
+        .slice(0, 5)
+        .map((error) => `${error.path || "/"}: ${error.message}`)
+        .join("; ");
+      throw new DeepSeekProtocolError(
+        `DeepSeek Web Search JSON did not match the schema${details ? ` (${details})` : ""}`,
+      );
+    }
+    return result as Static<T>;
   }
 
   async #requestJson(options: JsonCompletionOptions, repairInstruction: string): Promise<unknown> {
@@ -174,5 +280,26 @@ export class DeepSeekClient {
     }
 
     return result;
+  }
+}
+
+function parseJsonObject(text: string, source: string): unknown {
+  const trimmed = text.trim();
+  const unfenced = trimmed.startsWith("```")
+    ? trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")
+    : trimmed;
+  const firstBrace = unfenced.indexOf("{");
+  const lastBrace = unfenced.lastIndexOf("}");
+  const candidate =
+    firstBrace >= 0 && lastBrace > firstBrace
+      ? unfenced.slice(firstBrace, lastBrace + 1)
+      : unfenced;
+  try {
+    return JSON.parse(candidate);
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new DeepSeekProtocolError(`${source} contained invalid JSON`);
+    }
+    throw error;
   }
 }

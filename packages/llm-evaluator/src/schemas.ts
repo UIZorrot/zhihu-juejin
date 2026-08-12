@@ -65,6 +65,25 @@ export const BlindBaselineSchema = Type.Object({
 
 export type BlindBaseline = Static<typeof BlindBaselineSchema>;
 
+export const BaselineComparisonSchema = Type.Object({
+  reconstructablePercentage: Type.Integer({ minimum: 0, maximum: 100 }),
+  reconstructablePoints: Type.Array(Type.String({ minLength: 1, maxLength: 500 }), {
+    maxItems: 12,
+  }),
+  presentationOnlyPoints: Type.Array(Type.String({ minLength: 1, maxLength: 500 }), {
+    maxItems: 12,
+  }),
+  incrementalPoints: Type.Array(Type.String({ minLength: 1, maxLength: 500 }), { maxItems: 12 }),
+  genericAiStyleSignals: Type.Array(Type.String({ minLength: 1, maxLength: 500 }), {
+    maxItems: 12,
+  }),
+  informationGainCeiling: TenPointScoreSchema,
+  originalityCeiling: TenPointScoreSchema,
+  reason: Type.String({ minLength: 1, maxLength: 1_000 }),
+});
+
+export type BaselineComparison = Static<typeof BaselineComparisonSchema>;
+
 const DimensionSchema = Type.Object({
   score: TenPointScoreSchema,
   evidence: Type.Array(Type.String({ minLength: 1, maxLength: 500 }), { maxItems: 12 }),

@@ -1,6 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { DeepSeekClient, DeepSeekHttpError, DeepSeekProtocolError } from "./client";
-import { evaluateArticleQuality, evaluateFullContent, triageContentPreview } from "./evaluate";
+import {
+  applyBaselineComparisonLimits,
+  evaluateArticleQuality,
+  evaluateFullContent,
+  generateBlindBaseline,
+  triageContentPreview,
+} from "./evaluate";
+import type { ArticleQualityEvaluation } from "./schemas";
 
 function completion(content: object): Response {
   return Response.json({
@@ -16,7 +23,33 @@ function completion(content: object): Response {
   });
 }
 
-function articleEvaluation() {
+function webSearchCompletion(content: object, usedWebSearch = true): Response {
+  return Response.json({
+    id: "message-1",
+    model: "deepseek-v4-flash",
+    stop_reason: "end_turn",
+    content: [
+      ...(usedWebSearch
+        ? [
+            {
+              type: "server_tool_use",
+              id: "tool-1",
+              name: "web_search",
+              input: { query: "测试问题 官方资料" },
+            },
+            {
+              type: "web_search_tool_result",
+              tool_use_id: "tool-1",
+              content: [],
+            },
+          ]
+        : []),
+      { type: "text", text: `\`\`\`json\n${JSON.stringify(content)}\n\`\`\`` },
+    ],
+  });
+}
+
+function articleEvaluation(): ArticleQualityEvaluation {
   const dimension = { score: 7, evidence: ["有具体证据"], reason: "测试" };
   return {
     contentProfile: {
@@ -181,6 +214,77 @@ describe("DeepSeek quality evaluator", () => {
     expect(evaluationInput.mediaEvidence?.embeddedImageCount).toBe(3);
     expect(evaluationInput.authorContext?.topicExpertise).toEqual(["数学"]);
     expect(evaluationInput.article?.sampling?.headCharacters).toBe(2_000);
+  });
+
+  test("grounds the blind baseline in external evidence without exposing the article", async () => {
+    let requestBody: Record<string, unknown> | undefined;
+    let requestUrl = "";
+    const client = new DeepSeekClient({
+      apiKey: "test-key",
+      fetch: async (input, init) => {
+        requestUrl = String(input);
+        requestBody = JSON.parse(String(init?.body));
+        return webSearchCompletion({
+          question: "测试问题",
+          answer: "强基线答案",
+          genericPoints: ["公开资料可重建的要点"],
+        });
+      },
+    });
+
+    await generateBlindBaseline(client, {
+      title: "测试问题",
+      questionContext: "公开问题背景",
+      verificationEvidence: [
+        { title: "官方资料", url: "https://example.com/source", excerpt: "公开事实" },
+      ],
+    });
+
+    const messages = requestBody?.messages as Array<{ content: string }>;
+    const baselineInput = JSON.parse(messages[0]?.content ?? "{}") as {
+      verificationEvidence?: Array<{ title?: string }>;
+      article?: unknown;
+    };
+    const tools = requestBody?.tools as Array<Record<string, unknown>>;
+    expect(requestUrl).toEndWith("/anthropic/v1/messages");
+    expect(tools[0]?.type).toBe("web_search_20250305");
+    expect(tools[0]?.blocked_domains).toEqual(["zhihu.com"]);
+    expect(baselineInput.verificationEvidence?.[0]?.title).toBe("官方资料");
+    expect(baselineInput.article).toBeUndefined();
+    expect(requestBody?.system).toContain("必须先使用 Web Search");
+  });
+
+  test("rejects a claimed web baseline when no search tool was used", async () => {
+    const client = new DeepSeekClient({
+      apiKey: "test-key",
+      fetch: async () =>
+        webSearchCompletion({ question: "问题", answer: "答案", genericPoints: [] }, false),
+    });
+
+    expect(generateBlindBaseline(client, { title: "问题" })).rejects.toBeInstanceOf(
+      DeepSeekProtocolError,
+    );
+  });
+
+  test("deterministically limits high scores when the baseline reconstructs most content", () => {
+    const evaluation = articleEvaluation();
+    evaluation.informationGainAndDepth.score = 8.5;
+    evaluation.professionalismAndOriginality.score = 8;
+
+    const limited = applyBaselineComparisonLimits(evaluation, {
+      reconstructablePercentage: 85,
+      reconstructablePoints: ["核心事实"],
+      presentationOnlyPoints: ["术语化表达"],
+      incrementalPoints: ["一项局部解释"],
+      genericAiStyleSignals: ["模板化分节"],
+      informationGainCeiling: 6,
+      originalityCeiling: 6,
+      reason: "大部分可重建",
+    });
+
+    expect(limited.informationGainAndDepth.score).toBe(4.5);
+    expect(limited.professionalismAndOriginality.score).toBe(4.5);
+    expect(limited.informationGainAndDepth.reason).toContain("可重建约 85%");
   });
 
   test("rejects JSON that does not match the quality schema", async () => {

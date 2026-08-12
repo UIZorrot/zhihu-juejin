@@ -19,7 +19,7 @@ export default function HomePage() {
         <div className="section-heading">
           <div>
             <p className="kicker">SCORING CONTRACT</p>
-            <h2>六项分数，原样保留</h2>
+            <h2>六大维度，精确评判</h2>
           </div>
           <span>0—10 · 0.5 步进</span>
         </div>
@@ -30,14 +30,14 @@ export default function HomePage() {
             <p>按内容类型检查实验、案例、时间线、人物材料与个人一手叙述。</p>
           </article>
           <article>
-            <strong>15%</strong>
-            <h3>实践与经验</h3>
-            <p>衡量实验、踩坑、亲历、访谈、史料搜集与整理所需的真实投入。</p>
-          </article>
-          <article>
             <strong>25%</strong>
             <h3>信息增量与深度</h3>
             <p>通过盲测 AI 基线，识别文章真正多提供了什么。</p>
+          </article>
+          <article>
+            <strong>15%</strong>
+            <h3>实践与经验</h3>
+            <p>衡量实验、踩坑、亲历、访谈、史料搜集与整理所需的真实投入。</p>
           </article>
           <article>
             <strong>15%</strong>
@@ -63,7 +63,6 @@ export default function HomePage() {
             <p className="kicker">KNOWLEDGE COVERAGE</p>
             <h2>主要板块</h2>
           </div>
-          <span>包含游戏、生活与娱乐</span>
         </div>
         <div className="coverage-list">
           {knowledgeTaxonomy.map((domain) => (

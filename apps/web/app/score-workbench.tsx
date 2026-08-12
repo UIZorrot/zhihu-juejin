@@ -35,6 +35,16 @@ interface ScoreResponse {
     question: string;
     genericPoints: string[];
   };
+  baselineComparison: {
+    reconstructablePercentage: number;
+    reconstructablePoints: string[];
+    presentationOnlyPoints: string[];
+    incrementalPoints: string[];
+    genericAiStyleSignals: string[];
+    informationGainCeiling: number;
+    originalityCeiling: number;
+    reason: string;
+  };
   evaluation: {
     contentProfile: {
       primaryArchetype:
@@ -122,11 +132,12 @@ function Notification({ message, onClose }: { message: string; onClose: () => vo
   );
 }
 
-const SCORE_HISTORY_KEY = "zhihu-juejin.score-history.v4";
+const SCORE_HISTORY_KEY = "zhihu-juejin.score-history.v5";
 const LEGACY_SCORE_HISTORY_KEYS = [
   "zhihu-juejin.score-history.v1",
   "zhihu-juejin.score-history.v2",
   "zhihu-juejin.score-history.v3",
+  "zhihu-juejin.score-history.v4",
 ] as const;
 
 function isScoreHistoryEntry(value: unknown): value is ScoreHistoryEntry {
@@ -139,6 +150,7 @@ function isScoreHistoryEntry(value: unknown): value is ScoreHistoryEntry {
     typeof candidate.savedAt === "string" &&
     typeof candidate.result?.article?.title === "string" &&
     typeof candidate.result?.score?.finalScore === "number" &&
+    typeof candidate.result?.baselineComparison?.reconstructablePercentage === "number" &&
     Boolean(evaluation) &&
     dimensions.every((dimension) => typeof evaluation?.[dimension.key]?.score === "number")
   );
@@ -422,11 +434,21 @@ export function ScoreWorkbench() {
             <article className="analysis-card">
               <p className="kicker">BLIND AI BASELINE</p>
               <h3>{result.baseline.question}</h3>
-              <p>{result.evaluation.informationGainAndDepth.reason}</p>
-              <h4>文章超出通用回答的部分</h4>
+              <div className="effort-profile">
+                <span>联网盲基线可重建比例</span>
+                <strong>{result.baselineComparison.reconstructablePercentage}%</strong>
+              </div>
+              <p>{result.baselineComparison.reason}</p>
+              {result.baselineComparison.genericAiStyleSignals.length > 0 ? (
+                <div className="signal-list">
+                  <strong>同质化表达风险</strong>
+                  {result.baselineComparison.genericAiStyleSignals.join("；")}
+                </div>
+              ) : null}
+              <h4>独立对比确认的信息增量</h4>
               <ul>
-                {result.evaluation.informationGainAndDepth.beyondBaseline.length > 0 ? (
-                  result.evaluation.informationGainAndDepth.beyondBaseline.map((item) => (
+                {result.baselineComparison.incrementalPoints.length > 0 ? (
+                  result.baselineComparison.incrementalPoints.map((item) => (
                     <li key={item}>{item}</li>
                   ))
                 ) : (

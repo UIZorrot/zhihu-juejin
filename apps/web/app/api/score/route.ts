@@ -6,6 +6,8 @@ import {
   ZhihuArticleReadError,
 } from "@zhihu-juejin/content-pipeline";
 import {
+  applyBaselineComparisonLimits,
+  compareArticleAgainstBaseline,
   DeepSeekClient,
   DeepSeekHttpError,
   type DeepSeekModel,
@@ -66,13 +68,23 @@ async function collectVerificationEvidence(
     return undefined;
   }
   try {
-    const result = await client.searchGlobal({ query, count: 6, searchDb: "all" });
-    return result.items.slice(0, 6).map((item) => ({
-      title: item.Title,
-      url: item.Url,
-      excerpt: item.ContentText.slice(0, 1_200),
-      ...(item.AuthorityLevel ? { authorityLevel: item.AuthorityLevel } : {}),
-    }));
+    const result = await client.searchGlobal({ query, count: 20, searchDb: "all" });
+    return result.items
+      .filter((item) => {
+        try {
+          const hostname = new URL(item.Url).hostname.toLowerCase();
+          return hostname !== "zhihu.com" && !hostname.endsWith(".zhihu.com");
+        } catch {
+          return false;
+        }
+      })
+      .slice(0, 8)
+      .map((item) => ({
+        title: item.Title,
+        url: item.Url,
+        excerpt: item.ContentText.slice(0, 1_500),
+        ...(item.AuthorityLevel ? { authorityLevel: item.AuthorityLevel } : {}),
+      }));
   } catch (error) {
     if (error instanceof Error) {
       return undefined;
@@ -120,14 +132,22 @@ export async function POST(request: Request): Promise<Response> {
     const baseline = await generateBlindBaseline(client, {
       title: article.title,
       ...(article.questionContext ? { questionContext: article.questionContext.text } : {}),
+      ...(verificationEvidence ? { verificationEvidence } : {}),
+    });
+    const baselineComparison = await compareArticleAgainstBaseline(client, {
+      title: article.title,
+      text: evaluationText,
+      baseline,
+      ...(verificationEvidence ? { verificationEvidence } : {}),
     });
     const wasTruncated = suppliedText.length > 4_000 || article.truncated;
-    const evaluation = await evaluateArticleQuality(client, {
+    const rawEvaluation = await evaluateArticleQuality(client, {
       title: article.title,
       text: evaluationText,
       canonicalUrl: article.canonicalUrl,
       citations: article.citations,
       baseline,
+      baselineComparison,
       ...(article.questionContext ? { questionContext: article.questionContext } : {}),
       ...(verificationEvidence ? { verificationEvidence } : {}),
       ...(article.embeddedImages.length > 0
@@ -144,6 +164,7 @@ export async function POST(request: Request): Promise<Response> {
         : {}),
       ...(article.publishedAt ? { publishedAt: article.publishedAt } : {}),
     });
+    const evaluation = applyBaselineComparisonLimits(rawEvaluation, baselineComparison);
     const modelScore = calculateArticleScore(evaluation);
     const calibration = humanCalibrationCases.find(
       (item) => item.canonicalUrl === article.canonicalUrl && item.humanScore !== undefined,
@@ -179,6 +200,7 @@ export async function POST(request: Request): Promise<Response> {
         question: baseline.question,
         genericPoints: baseline.genericPoints,
       },
+      baselineComparison,
       evaluation,
       score,
     });
