@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, useEffect, useState } from "react";
+import { readScoreHistory, type StoredScoreHistoryEntry, writeScoreHistory } from "./score-history";
 
 interface DimensionResult {
   score: number;
@@ -148,22 +149,11 @@ function Notification({ message, onClose }: { message: string; onClose: () => vo
   );
 }
 
-const SCORE_HISTORY_KEY = "zhihu-juejin.score-history.v8";
-const LEGACY_SCORE_HISTORY_KEYS = [
-  "zhihu-juejin.score-history.v1",
-  "zhihu-juejin.score-history.v2",
-  "zhihu-juejin.score-history.v3",
-  "zhihu-juejin.score-history.v4",
-  "zhihu-juejin.score-history.v5",
-  "zhihu-juejin.score-history.v6",
-  "zhihu-juejin.score-history.v7",
-] as const;
-
-function isScoreHistoryEntry(value: unknown): value is ScoreHistoryEntry {
+function hasCurrentScoreHistoryShape(value: StoredScoreHistoryEntry): boolean {
   if (!value || typeof value !== "object") {
     return false;
   }
-  const candidate = value as Partial<ScoreHistoryEntry>;
+  const candidate = value as StoredScoreHistoryEntry & Partial<ScoreHistoryEntry>;
   const evaluation = candidate.result?.evaluation;
   return (
     typeof candidate.savedAt === "string" &&
@@ -232,22 +222,14 @@ export function ScoreWorkbench() {
   const [history, setHistory] = useState<ScoreHistoryEntry[]>([]);
 
   useEffect(() => {
-    for (const legacyKey of LEGACY_SCORE_HISTORY_KEYS) {
-      localStorage.removeItem(legacyKey);
-    }
-    const saved = localStorage.getItem(SCORE_HISTORY_KEY);
-    if (!saved) {
-      return;
-    }
     try {
-      const decoded: unknown = JSON.parse(saved);
-      if (Array.isArray(decoded)) {
-        setHistory(decoded.filter(isScoreHistoryEntry).slice(0, 10));
+      const recovered = readScoreHistory(localStorage);
+      setHistory(recovered as ScoreHistoryEntry[]);
+      if (recovered.length > 0) {
+        writeScoreHistory(localStorage, recovered);
       }
-    } catch (error) {
-      if (!(error instanceof SyntaxError)) {
-        throw error;
-      }
+    } catch {
+      setNotification("浏览器未能读取本地历史记录，请检查是否禁用了站点存储。");
     }
   }, []);
 
@@ -268,7 +250,11 @@ export function ScoreWorkbench() {
           (item) => item.result.article.canonicalUrl !== scoreResult.article.canonicalUrl,
         ),
       ].slice(0, 10);
-      localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify(next));
+      try {
+        writeScoreHistory(localStorage, next);
+      } catch {
+        setNotification("评分已完成，但浏览器未能保存历史记录，请检查站点存储权限。");
+      }
       return next;
     });
   }
@@ -322,6 +308,14 @@ export function ScoreWorkbench() {
 
   function rerunScore(scoreResult: ScoreResponse) {
     void runScore(scoreResult.article.canonicalUrl);
+  }
+
+  function openHistoryEntry(entry: ScoreHistoryEntry) {
+    if (hasCurrentScoreHistoryShape(entry)) {
+      setResult(entry.result);
+      return;
+    }
+    rerunScore(entry.result);
   }
 
   return (
@@ -405,7 +399,7 @@ export function ScoreWorkbench() {
                 <button
                   className="history-open"
                   type="button"
-                  onClick={() => setResult(entry.result)}
+                  onClick={() => openHistoryEntry(entry)}
                 >
                   <span>
                     <strong>{entry.result.article.title}</strong>

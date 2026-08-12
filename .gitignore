@@ -2,6 +2,7 @@ node_modules/
 .next/
 .open-next/
 .wrangler/
+.playwright-cli/
 dist/
 coverage/
 .env*
