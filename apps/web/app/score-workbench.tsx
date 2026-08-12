@@ -237,8 +237,12 @@ export function ScoreWorkbench() {
     });
   }
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function runScore(targetUrl: string, suppliedText = "") {
+    if (loading) {
+      return;
+    }
+    setUrl(targetUrl);
+    setArticleText(suppliedText);
     setLoading(true);
     setError("");
     setNotification("");
@@ -247,7 +251,10 @@ export function ScoreWorkbench() {
       const response = await fetch("/api/score", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, ...(articleText.trim() ? { text: articleText } : {}) }),
+        body: JSON.stringify({
+          url: targetUrl,
+          ...(suppliedText.trim() ? { text: suppliedText } : {}),
+        }),
       });
       const payload = (await response.json()) as
         | ScoreResponse
@@ -270,6 +277,15 @@ export function ScoreWorkbench() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void runScore(url, articleText);
+  }
+
+  function rerunScore(scoreResult: ScoreResponse) {
+    void runScore(scoreResult.article.canonicalUrl);
   }
 
   return (
@@ -346,17 +362,30 @@ export function ScoreWorkbench() {
           </div>
           <div className="history-list">
             {history.map((entry) => (
-              <button
-                type="button"
+              <div
+                className="history-row"
                 key={`${entry.result.article.canonicalUrl}-${entry.savedAt}`}
-                onClick={() => setResult(entry.result)}
               >
-                <span>
-                  <strong>{entry.result.article.title}</strong>
-                  <small>{new Date(entry.savedAt).toLocaleString("zh-CN")}</small>
-                </span>
-                <em>{entry.result.score.finalScore.toFixed(1)}</em>
-              </button>
+                <button
+                  className="history-open"
+                  type="button"
+                  onClick={() => setResult(entry.result)}
+                >
+                  <span>
+                    <strong>{entry.result.article.title}</strong>
+                    <small>{new Date(entry.savedAt).toLocaleString("zh-CN")}</small>
+                  </span>
+                  <em>{entry.result.score.finalScore.toFixed(1)}</em>
+                </button>
+                <button
+                  className="history-rerun"
+                  type="button"
+                  disabled={loading}
+                  onClick={() => rerunScore(entry.result)}
+                >
+                  重新评分
+                </button>
+              </div>
             ))}
           </div>
         </section>
@@ -394,16 +423,26 @@ export function ScoreWorkbench() {
                   : " · 外部核验暂不可用"}
               </p>
             </div>
-            <div className={`score-orb score-${result.score.decision}`}>
-              <strong>{result.score.finalScore.toFixed(1)}</strong>
-              <span>/ 10 · {decisionLabels[result.score.decision]}</span>
-              {result.score.humanCalibration ? (
-                <span>
-                  人工校准 {result.score.humanCalibration.minimum.toFixed(1)}—
-                  {result.score.humanCalibration.maximum.toFixed(1)} · 模型原始{" "}
-                  {result.score.modelFinalScore?.toFixed(1)}
-                </span>
-              ) : null}
+            <div className="result-actions">
+              <div className={`score-orb score-${result.score.decision}`}>
+                <strong>{result.score.finalScore.toFixed(1)}</strong>
+                <span>/ 10 · {decisionLabels[result.score.decision]}</span>
+                {result.score.humanCalibration ? (
+                  <span>
+                    人工校准 {result.score.humanCalibration.minimum.toFixed(1)}—
+                    {result.score.humanCalibration.maximum.toFixed(1)} · 模型原始{" "}
+                    {result.score.modelFinalScore?.toFixed(1)}
+                  </span>
+                ) : null}
+              </div>
+              <button
+                className="rerun-button"
+                type="button"
+                disabled={loading}
+                onClick={() => rerunScore(result)}
+              >
+                {loading ? "正在重新评分…" : "重新评分此链接"}
+              </button>
             </div>
           </div>
 
