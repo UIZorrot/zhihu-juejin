@@ -76,7 +76,7 @@ describe("calculateArticleScore", () => {
       timeliness: 10,
     });
     const result = calculateArticleScore(input);
-    expect(result.uncappedScore).toBe(6);
+    expect(result.uncappedScore).toBe(6.5);
     expect(result.finalScore).toBe(4);
     expect(result.capReasons).toContain("既无可靠证据或经验，也无专业原创判断");
   });
@@ -85,7 +85,7 @@ describe("calculateArticleScore", () => {
     const input = evaluation({ evidence: 4, practice: 4, professional: 8, gain: 9 });
     const result = calculateArticleScore(input);
     expect(result.appliedCap).toBeNull();
-    expect(result.finalScore).toBe(6);
+    expect(result.finalScore).toBe(6.5);
   });
 
   test("deducts one point for every dimension at or below six on obvious promotion", () => {
@@ -138,7 +138,7 @@ describe("calculateArticleScore", () => {
     });
     input.flags = ["PURE_LEAD_GENERATION"];
     const result = calculateArticleScore(input);
-    expect(result.uncappedScore).toBe(4.5);
+    expect(result.uncappedScore).toBe(5);
     expect(result.finalScore).toBe(1);
     expect(result.appliedCap).toBe(1);
     expect(result.capReasons).toEqual(["检测到商业推广；5 个维度不高于 6 分，各扣 1 分"]);

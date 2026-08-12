@@ -2,8 +2,8 @@ import type { ArticleQualityEvaluation } from "@zhihu-juejin/llm-evaluator";
 
 export const articleScoreWeights = {
   evidenceAndTruthfulness: 0.25,
-  practiceAndExperience: 0.25,
-  informationGainAndDepth: 0.15,
+  practiceAndExperience: 0.15,
+  informationGainAndDepth: 0.25,
   professionalismAndOriginality: 0.15,
   commercialIndependence: 0.1,
   timelinessValue: 0.1,

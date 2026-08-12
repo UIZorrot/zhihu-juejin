@@ -30,12 +30,12 @@ export default function HomePage() {
             <p>按内容类型检查实验、案例、时间线、人物材料与个人一手叙述。</p>
           </article>
           <article>
-            <strong>25%</strong>
+            <strong>15%</strong>
             <h3>实践与经验</h3>
             <p>衡量实验、踩坑、亲历、访谈、史料搜集与整理所需的真实投入。</p>
           </article>
           <article>
-            <strong>15%</strong>
+            <strong>25%</strong>
             <h3>信息增量与深度</h3>
             <p>通过盲测 AI 基线，识别文章真正多提供了什么。</p>
           </article>

@@ -122,10 +122,11 @@ function Notification({ message, onClose }: { message: string; onClose: () => vo
   );
 }
 
-const SCORE_HISTORY_KEY = "zhihu-juejin.score-history.v3";
+const SCORE_HISTORY_KEY = "zhihu-juejin.score-history.v4";
 const LEGACY_SCORE_HISTORY_KEYS = [
   "zhihu-juejin.score-history.v1",
   "zhihu-juejin.score-history.v2",
+  "zhihu-juejin.score-history.v3",
 ] as const;
 
 function isScoreHistoryEntry(value: unknown): value is ScoreHistoryEntry {
@@ -145,8 +146,8 @@ function isScoreHistoryEntry(value: unknown): value is ScoreHistoryEntry {
 
 const dimensions = [
   { key: "evidenceAndTruthfulness", label: "证据和真实性", weight: "25%" },
-  { key: "practiceAndExperience", label: "实践与经验", weight: "25%" },
-  { key: "informationGainAndDepth", label: "信息增量与深度", weight: "15%" },
+  { key: "practiceAndExperience", label: "实践与经验", weight: "15%" },
+  { key: "informationGainAndDepth", label: "信息增量与深度", weight: "25%" },
   { key: "professionalismAndOriginality", label: "专业与原创", weight: "15%" },
   { key: "commercialIndependence", label: "无商业推广", weight: "10%" },
   { key: "timelinessValue", label: "时效价值", weight: "10%" },
