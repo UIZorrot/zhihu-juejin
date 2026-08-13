@@ -353,6 +353,30 @@ describe("DeepSeek quality evaluator", () => {
     expect(limited.informationGainAndDepth.reason).toContain("可重建约 85%");
   });
 
+  test("does not erase substantive first-hand tests just because public background is reconstructable", () => {
+    const evaluation = articleEvaluation();
+    evaluation.practiceAndExperience.score = 7;
+    evaluation.informationGainAndDepth.score = 7;
+    evaluation.professionalismAndOriginality.score = 7;
+
+    const limited = applyBaselineComparisonLimits(evaluation, {
+      reconstructablePercentage: 85,
+      reconstructablePoints: ["发布信息和官方 benchmark"],
+      presentationOnlyPoints: [],
+      incrementalPoints: [
+        "比较 Claude Code 与 opencode 的同任务表现",
+        "记录目录遮挡、乱码和功能缺失等失败现象",
+      ],
+      genericAiStyleSignals: [],
+      informationGainCeiling: 5.5,
+      originalityCeiling: 5.5,
+      reason: "公共背景很多，但存在一手实测",
+    });
+
+    expect(limited.informationGainAndDepth.score).toBe(6.5);
+    expect(limited.professionalismAndOriginality.score).toBe(6.5);
+  });
+
   test("composes public reception from comments 60% and interactions 40%", () => {
     const evaluation = articleEvaluation();
     evaluation.publicReception.commentObservationScore = 3;
@@ -387,6 +411,31 @@ describe("DeepSeek quality evaluator", () => {
       "评论质疑：质疑内容带有明显 AI 味道",
       "评论认可：认可其中的技术解释",
     ]);
+  });
+
+  test("uses public reception baseline 6.5 when comments are unavailable", () => {
+    const evaluation = articleEvaluation();
+    evaluation.publicReception.commentObservationScore = 3;
+    evaluation.publicReception.interactionSignalScore = 10;
+
+    const withoutReaction = applyPublicReceptionComposition(evaluation);
+    expect(withoutReaction.publicReception.score).toBe(6.5);
+    expect(withoutReaction.publicReception.commentObservationScore).toBe(6.5);
+    expect(withoutReaction.publicReception.interactionSignalScore).toBe(6.5);
+    expect(withoutReaction.publicReception.reason).toBe(
+      "暂未取得足够的公开评论，舆论氛围按中性处理。",
+    );
+
+    const withVotesButNoComments = applyPublicReceptionComposition(evaluation, {
+      voteUpCount: 308,
+      commentCount: 25,
+      visibleComments: [],
+      interactionSignalScore: 8,
+      source: "zhihu_open_platform_search",
+    });
+    expect(withVotesButNoComments.publicReception.score).toBe(6.5);
+    expect(withVotesButNoComments.publicReception.commentObservationScore).toBe(6.5);
+    expect(withVotesButNoComments.publicReception.interactionSignalScore).toBe(6.5);
   });
 
   test("rejects JSON that does not match the quality schema", async () => {

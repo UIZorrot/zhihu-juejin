@@ -91,7 +91,7 @@ const TEN_POINT_RUBRIC = `
 专业与原创：10=准确掌握对象、机制、边界和不确定性，并提出基线不易生成的独立框架、犀利判断或高质量叙事整合；7=专业或对象知识可靠，有明确个人视角，或把分散材料组织成有解释力的历史脉络；4=比喻或观点看似新颖，但主要模式是“X 就是 Y”的武断类比，没有观察依据、案例、因果链或反例，或者仅停留在常识复述；0=根本性误解、伪专业推理或洗稿拼接。人文、生活和娱乐内容不要求技术术语，“专业”表现为真正了解人物、事件、文化语境或生活处境。尖锐、反共识、有情绪甚至带贬义修辞的观点，只要推理受知识支持，就是原创正向信号；严禁仅凭语气扣分。可核验的领域身份只能帮助解释经验来源，不能直接换分，也不能抵消正文错误。术语准确只证明专业性，不证明原创性；若正文主要是公开履历、论文摘要、机构报道和受访者陈述的顺序转述，且外部检索或盲测基线可轻易重建大部分内容，就应降低本维度。采访本身只证明工作量，必须产生公开资料难以替代的事实、判断、追问或解释，才能形成高原创分。
 商业独立性：10=没有刻意广告、引流、起号或利益诱导，也没有用平庸洗稿为商业账号蓄水；7=有品牌/产品效果宣传但判断基本独立；4=暗示某商业产品效果优越、轻度软文或利益关系不透明，但没有明确行动召唤；0=明显商业推广、卖课、导流、邀请码、下载入口、反复宣传自有社群或服务、虚构变现、洗稿起号。仅仅点名、讨论或批评公司和产品不算“产品露出”，不能扣分；情绪、讽刺、立场鲜明、批评公司或赞美非商业对象也都不是推广信号。如果 promotionalSignals 与 contentFarmSignals 都为空，本维度必须为 10 分；出现明确下载、加群、邀请码、购买或关注行动召唤时，本维度必须为 0，并设置 PURE_LEAD_GENERATION。此维度越高越好。
 时效价值：10=对时效敏感且包含非常新的、已经核对日期的信息；7=较新且仍有现实价值；5=内容不依赖时效或时间中性；2=时效型内容明显落后；0=把严重过时的信息当作当前事实。新闻足够新可以获得加分，数学、历史等非时效内容不得因为年代久自动扣分。
-舆论氛围：评价公开评论对内容可靠性与价值的总体观察，而不是评价作者受欢迎程度。commentObservationScore 占最终维度 60%：10=可见评论普遍提供专业认可、独立复核或有价值补充且没有实质反驳；7=总体认可并有具体理由；5=评论不足、中性、分歧明显或主要是情绪；3=多条具体质疑 AI 同质化、事实、逻辑、营销或原创性且正文没有回应；0=评论给出可核验的致命反证。interactionSignalScore 占 40%，由系统根据赞同与评论规模预先给出，必须原样返回；互动是弱信号，不得因高赞直接判为高质量。只评价输入中的可见评论样本，不得声称代表完整评论区；没有样本时 commentObservationScore 必须为 5。publicReception.reason 只解释评论观察与样本局限，禁止自行计算、舍入或陈述最终舆论氛围分；最终 score 将由程序重算。
+舆论氛围：评价公开评论对内容可靠性与价值的总体观察，而不是评价作者受欢迎程度。commentObservationScore 占最终维度 60%：10=可见评论普遍提供专业认可、独立复核或有价值补充且没有实质反驳；7=总体认可并有具体理由；6.5=评论不足时的中性 baseline；5=分歧明显或主要是情绪；3=多条具体质疑 AI 同质化、事实、逻辑、营销或原创性且正文没有回应；0=评论给出可核验的致命反证。interactionSignalScore 占 40%，由系统根据赞同与评论规模预先给出，必须原样返回；互动是弱信号，不得因高赞直接判为高质量。只评价输入中的可见评论样本，不得声称代表完整评论区；没有样本时 commentObservationScore 必须为 6.5。publicReception.reason 只解释评论观察与样本局限，禁止自行计算、舍入或陈述最终舆论氛围分；最终 score 将由程序重算。
 
 工作量是跨领域共同尺度：查证与交叉验证、对比实验、亲身实践、踩坑、访谈、长期观察、原创推理、搜集时间线以及把杂乱材料组织成易懂叙事，都属于工作量。字数多、情绪强、术语多、排版工整和编造具体细节不代表工作量。contentProfile.effortScore 只评价可从正文识别的有效劳动；最终质量还要检查这些劳动是否转化成可信且对读者有用的信息。
 对于人物、历史或娱乐事件梳理，如果正文有明确人物身份、关系和时间线，并嵌入 10 张以上用于展示材料的图片，通常说明存在显著搜集和编辑劳动；在没有洗稿、装饰图滥用或前后矛盾信号时，effortScore 和实践与经验原则上不低于 7。图片数量不能单独提高证据真实性，真实性仍取决于文本、外部核验和未来的图片内容识别。
@@ -173,7 +173,7 @@ export async function compareArticleAgainstBaseline(
     system:
       "你是独立的信息增量审判器，只判断待评正文相对于强 AI 基线和公开资料真正新增了什么。术语更多、篇幅更长、结构更顺、换比喻、把公开资料重新组织成科普，都只能算表达贡献，不能算事实或洞见增量。不要根据文风断言文章由 AI 生成，但要记录缺乏作者特异证据的模板化 AI 风格风险。只输出 JSON。",
     user: JSON.stringify({
-      task: "逐项拆分正文。reconstructablePoints 写基线或公开资料已经覆盖的实质内容；presentationOnlyPoints 写只是表达、组织或科普方式不同的内容；incrementalPoints 只写真正无法由基线与公开资料直接重建的新事实、一手材料、推导或独立判断。若可重建比例不低于 70% 且没有一手材料或展开推导，informationGainCeiling 和 originalityCeiling 均不得超过 5.5；不低于 50% 时原则上不得超过 6.5。达到 7 分以上必须至少有两项具体、不可重建且对结论重要的增量，不能把术语正确本身当原创。",
+      task: "逐项拆分正文。reconstructablePoints 写基线或公开资料已经覆盖的实质内容；presentationOnlyPoints 写只是表达、组织或科普方式不同的内容；incrementalPoints 只写真正无法由基线与公开资料直接重建的新事实、一手材料、推导或独立判断。可重建比例只衡量公共事实覆盖率，不能吞掉正文中的一手实测贡献。若可重建比例不低于 70% 且没有一手材料或展开推导，informationGainCeiling 和 originalityCeiling 均不得超过 5.5；若存在至少两项与核心问题直接相关的一手实测增量，包含具体任务、对照或环境、观察到的成功/失败及其可迁移结论，则两个 ceiling 不得低于 6.5，即使文章同时复述了大量公共背景。不低于 50% 时原则上不得超过 6.5。达到 7 分以上必须至少有两项具体、不可重建且对结论重要的增量，不能把术语正确本身当原创。",
       title: input.title,
       articleText: input.text,
       blindBaseline: input.baseline,
@@ -187,16 +187,26 @@ export function applyBaselineComparisonLimits(
   evaluation: ArticleQualityEvaluation,
   comparison: BaselineComparison,
 ): ArticleQualityEvaluation {
+  const hasSubstantiveFirstHandContribution =
+    evaluation.practiceAndExperience.score >= 7 && comparison.incrementalPoints.length >= 2;
   const deterministicCeiling =
-    comparison.reconstructablePercentage >= 80 && comparison.incrementalPoints.length < 2
-      ? 4.5
-      : comparison.reconstructablePercentage >= 70
-        ? 5.5
-        : comparison.reconstructablePercentage >= 50
-          ? 6.5
-          : 10;
-  const informationGainCeiling = Math.min(deterministicCeiling, comparison.informationGainCeiling);
-  const originalityCeiling = Math.min(deterministicCeiling, comparison.originalityCeiling);
+    hasSubstantiveFirstHandContribution && comparison.reconstructablePercentage >= 50
+      ? 6.5
+      : comparison.reconstructablePercentage >= 80 && comparison.incrementalPoints.length < 2
+        ? 4.5
+        : comparison.reconstructablePercentage >= 70
+          ? 5.5
+          : comparison.reconstructablePercentage >= 50
+            ? 6.5
+            : 10;
+  const comparisonInformationCeiling = hasSubstantiveFirstHandContribution
+    ? Math.max(6.5, comparison.informationGainCeiling)
+    : comparison.informationGainCeiling;
+  const comparisonOriginalityCeiling = hasSubstantiveFirstHandContribution
+    ? Math.max(6.5, comparison.originalityCeiling)
+    : comparison.originalityCeiling;
+  const informationGainCeiling = Math.min(deterministicCeiling, comparisonInformationCeiling);
+  const originalityCeiling = Math.min(deterministicCeiling, comparisonOriginalityCeiling);
 
   const informationWasLimited = evaluation.informationGainAndDepth.score > informationGainCeiling;
   const originalityWasLimited = evaluation.professionalismAndOriginality.score > originalityCeiling;
@@ -240,7 +250,7 @@ export async function evaluateArticleQuality(
     temperature: 0,
     system: `你是知乎掘金的内容评分器。依据给定正文样本、问题上下文、独立生成的盲测基线、可见引用和外部检索证据判断。不得使用点赞数、粉丝量或作者名气。先为 contentProfile 选择最贴近正文价值来源的内容类型，再使用对应证据标准；不要拿技术论文模板评判生活经历、人物史料或社会评论。问题描述是回答的公共上下文：其中已经给出的事实和来源不能被误判为回答缺少出处，但也不能当作回答自己的信息增量。外部检索若能直接支持一个常见事实，就把它视为已核验；搜索未召回、没有找到或暂时无法验证，不构成事实错误。只有明确的相反证据才能产生 factualProblems；major 问题必须在 contradictingEvidence 中写出可核查的冲突证据，否则禁止标为 major。mediaEvidence 表示正文实际嵌入的图片或截图：图片数量可证明作者进行了材料展示和编辑投入，尤其对人物史料、娱乐事件和教程有意义；但你没有看到图片像素，不能编造图片内容，也不能仅凭图片数量断言某个事实已经核验。评论与解释性文章可以依靠逻辑链、领域惯例和经验判断论证价值，但纯粹的武断类比不是专业直觉。修辞、讽刺、价值判断和经验性概括不属于可直接判错的事实。作者资料只能作为判断经验来源的弱证据，不能自动加分或覆盖正文错误。每个分数必须引用正文具体证据；无法验证时降低置信度，不得编造核验结果。每个数组最多填写 3 条，每条保持简短。${TEN_POINT_RUBRIC}\n只输出 JSON。`,
     user: JSON.stringify({
-      task: "先判断内容类型和有效工作量，再按六个维度评分。盲测基线没有看到待评分正文、作者资料和引用，但已经使用与评分器相同的公开外部资料生成，因此它代表强 AI 可直接重建的内容。逐条比较正文与 blindBaseline：仅仅更长、更流畅、术语更多、换一种比喻或把公开资料改写成科普，不构成信息增量。信息增量达到 7 分，必须列出至少两项基线和公开资料都无法直接重建的具体新增事实、推导、独立判断或一手材料；若正文的核心事实、方法与局限基本都能由基线或 verificationEvidence 重建，信息增量原则上不得超过 4.5。专业术语正确只证明转述可能准确，不证明作者理解、工作量或原创性；没有推导、阅读痕迹、来源选择依据或独立判断时，专业与原创原则上不得超过 5.5，实践与经验不得超过 5.5。AI 风格不能证明由 AI 生成，但若正文呈现模板化分节、对称转折、泛化结论、缺少作者特异证据，且实质内容可由公开资料重建，应将其作为同质化风险降低信息增量和原创性。区分问题前提、事实论断、个人经历、资料整理、专业经验判断和外部核验结果；评价工作量是否真正转化成可信、有用、难以替代的知识。",
+      task: "先判断内容类型和有效工作量，再按六个维度评分。盲测基线没有看到待评分正文、作者资料和引用，但已经使用与评分器相同的公开外部资料生成，因此它代表强 AI 可直接重建的公共内容。逐条比较正文与 blindBaseline：仅仅更长、更流畅、术语更多、换一种比喻或把公开资料改写成科普，不构成信息增量。反之，作者亲自执行的测试不会因为测试对象、公开 benchmark 或产品背景可检索就失去原创性；具体任务、不同 harness/工具的对照、成功与失败现象、成本以及由这些观察得到的选择建议，都是 baseline 不能重建的一手贡献。两项以上这类贡献且对结论有用时，信息增量与专业原创可以达到 6.5；不要用“属于个人主观体验”本身扣分，但仍要因样本少、缺少量化控制或分析不深限制其达到 7 分以上。信息增量达到 7 分，必须列出至少两项基线和公开资料都无法直接重建的具体新增事实、推导、独立判断或一手材料；若正文的核心事实、方法与局限基本都能由基线或 verificationEvidence 重建且没有实质一手贡献，信息增量原则上不得超过 4.5。专业术语正确只证明转述可能准确，不证明作者理解、工作量或原创性；没有推导、阅读痕迹、来源选择依据、实测观察或独立判断时，专业与原创原则上不得超过 5.5，实践与经验不得超过 5.5。AI 风格不能证明由 AI 生成，但若正文呈现模板化分节、对称转折、泛化结论、缺少作者特异证据，且实质内容可由公开资料重建，应将其作为同质化风险降低信息增量和原创性。区分问题前提、事实论断、个人经历、资料整理、专业经验判断和外部核验结果；评价工作量是否真正转化成可信、有用、难以替代的知识。",
       evaluationDate: input.evaluationDate ?? new Date().toISOString().slice(0, 10),
       article: {
         title: input.title,
@@ -262,20 +272,29 @@ export async function evaluateArticleQuality(
   });
 }
 
+const PUBLIC_RECEPTION_BASELINE_SCORE = 6.5;
+
 export function applyPublicReceptionComposition(
   evaluation: ArticleQualityEvaluation,
   reaction?: PublicReactionContext,
 ): ArticleQualityEvaluation {
-  const commentScore = reaction?.visibleComments.length
+  const hasVisibleComments = Boolean(reaction?.visibleComments.length);
+  const commentScore = hasVisibleComments
     ? evaluation.publicReception.commentObservationScore
-    : 5;
-  const interactionScore = reaction?.interactionSignalScore ?? 5;
-  const score = Math.round((commentScore * 0.6 + interactionScore * 0.4) * 2) / 2;
+    : PUBLIC_RECEPTION_BASELINE_SCORE;
+  // No usable comments: keep the dimension at the neutral baseline (7),
+  // even if weak popularity signals exist.
+  const interactionScore = hasVisibleComments
+    ? (reaction?.interactionSignalScore ?? PUBLIC_RECEPTION_BASELINE_SCORE)
+    : PUBLIC_RECEPTION_BASELINE_SCORE;
+  const score = hasVisibleComments
+    ? Math.round((commentScore * 0.6 + interactionScore * 0.4) * 2) / 2
+    : PUBLIC_RECEPTION_BASELINE_SCORE;
   const sampleLimitations = [
     ...evaluation.publicReception.sampleLimitations,
     ...(reaction
       ? [`仅分析开放平台返回的 ${reaction.visibleComments.length} 条可见评论样本`]
-      : ["未取得互动与评论数据，按中性分处理"]),
+      : ["未取得互动与评论数据，按中性分 6.5 处理"]),
   ].slice(0, 12);
   const positiveObservations = evaluation.publicReception.positiveObservations.slice(0, 3);
   const criticalObservations = evaluation.publicReception.criticalObservations.slice(0, 3);

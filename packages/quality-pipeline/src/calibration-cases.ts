@@ -8,6 +8,14 @@ export interface HumanCalibrationCase {
     minimum: number;
     maximum: number;
   };
+  humanDimensionScores?: {
+    informationGainAndDepth?: number;
+    professionalismAndOriginality?: number;
+  };
+  humanDimensionReasons?: {
+    informationGainAndDepth?: string;
+    professionalismAndOriginality?: string;
+  };
   recordedAt?: string;
   expectedPreviewDecision?: "acquire_full_text" | "human_review" | "reject";
   expectedFullDecision?: "publish" | "human_audit" | "reject";
@@ -20,6 +28,35 @@ export interface HumanCalibrationCase {
 }
 
 export const humanCalibrationCases: readonly HumanCalibrationCase[] = [
+  {
+    sourceContentId: "2071039390856516391",
+    canonicalUrl: "https://www.zhihu.com/question/2071014727606703118/answer/2071039390856516391",
+    title: "DeepSeek V4 Pro 正式版发布，如何评价该模型？",
+    authorName: "卜寒兮",
+    humanDimensionScores: {
+      informationGainAndDepth: 6.5,
+      professionalismAndOriginality: 6.5,
+    },
+    humanDimensionReasons: {
+      informationGainAndDepth:
+        "发布信息和官方 benchmark 多数属于公共背景，但三个具体任务、不同 harness 的效果差异、失败现象与使用成本是一手增量；这些观察对工具选择有参考价值，受样本量和量化控制限制评为 6.5。",
+      professionalismAndOriginality:
+        "作者不仅复述公开数据，还基于实际接入和任务测试提出 Claude Code 与 opencode 表现差异等独立判断；判断有具体观察支撑，但尚未形成更系统的实验框架，评为 6.5。",
+    },
+    recordedAt: "2026-08-13",
+    expectedCorpusDecision: "retain",
+    expectedVerdict: "qualified",
+    expectedCreatorExpansion: "watch",
+    positiveSignals: [
+      "FIRST_HAND_MODEL_TESTS",
+      "HARNESS_COMPARISON",
+      "CONCRETE_FAILURE_OBSERVATIONS",
+      "PERSONAL_COST_OBSERVATION",
+    ],
+    failureReasons: ["LIMITED_SAMPLE_SIZE", "LIMITED_QUANTITATIVE_CONTROL"],
+    auditSummary:
+      "文章中的发布信息和官方 benchmark 多数可由公开资料重建，但作者实际执行了三个任务，比较 Claude Code 与 opencode 的 harness 表现，并记录目录遮挡、乱码、功能缺失和高强度使用成本。这些具体成功与失败观察不是盲基线能够生成的一手材料，且能帮助读者选择接入方式；样本量和量化控制不足，使其暂不宜达到 7 分以上。信息增量与专业原创人工校准均为 6.5。",
+  },
   {
     sourceContentId: "2063647687766020746",
     canonicalUrl: "https://zhuanlan.zhihu.com/p/2063647687766020746",

@@ -201,21 +201,49 @@ export async function POST(request: Request): Promise<Response> {
       ...(article.publishedAt ? { publishedAt: article.publishedAt } : {}),
       ...(publicReaction ? { publicReaction } : {}),
     });
-    const evaluation = applyPublicReceptionComposition(
+    const modelEvaluation = applyPublicReceptionComposition(
       applyBaselineComparisonLimits(rawEvaluation, baselineComparison),
       publicReaction,
     );
-    const modelScore = calculateArticleScore(evaluation);
     const calibration = humanCalibrationCases.find(
-      (item) => item.canonicalUrl === article.canonicalUrl && item.humanScore !== undefined,
+      (item) => item.canonicalUrl === article.canonicalUrl,
     );
-    const score = calibration
-      ? applyHumanScoreCalibration(modelScore, {
-          score: calibration.humanScore ?? modelScore.finalScore,
-          ...(calibration.humanScoreRange ? { range: calibration.humanScoreRange } : {}),
-          ...(calibration.recordedAt ? { recordedAt: calibration.recordedAt } : {}),
-        })
-      : modelScore;
+    const evaluation = calibration?.humanDimensionScores
+      ? {
+          ...modelEvaluation,
+          informationGainAndDepth: {
+            ...modelEvaluation.informationGainAndDepth,
+            ...(calibration.humanDimensionScores.informationGainAndDepth !== undefined
+              ? {
+                  score: calibration.humanDimensionScores.informationGainAndDepth,
+                  ...(calibration.humanDimensionReasons?.informationGainAndDepth
+                    ? { reason: calibration.humanDimensionReasons.informationGainAndDepth }
+                    : {}),
+                }
+              : {}),
+          },
+          professionalismAndOriginality: {
+            ...modelEvaluation.professionalismAndOriginality,
+            ...(calibration.humanDimensionScores.professionalismAndOriginality !== undefined
+              ? {
+                  score: calibration.humanDimensionScores.professionalismAndOriginality,
+                  ...(calibration.humanDimensionReasons?.professionalismAndOriginality
+                    ? { reason: calibration.humanDimensionReasons.professionalismAndOriginality }
+                    : {}),
+                }
+              : {}),
+          },
+        }
+      : modelEvaluation;
+    const modelScore = calculateArticleScore(evaluation);
+    const score =
+      calibration?.humanScore !== undefined
+        ? applyHumanScoreCalibration(modelScore, {
+            score: calibration.humanScore,
+            ...(calibration.humanScoreRange ? { range: calibration.humanScoreRange } : {}),
+            ...(calibration.recordedAt ? { recordedAt: calibration.recordedAt } : {}),
+          })
+        : modelScore;
 
     return NextResponse.json({
       article: {
